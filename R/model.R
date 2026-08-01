@@ -53,6 +53,11 @@ sbert_load_model <- function(
       call. = FALSE
     )
   }
+  if (identical(manifest$type, "static")) {
+    static_paths <- status$path
+    names(static_paths) <- status$file
+    return(load_sbert_static_model(manifest, static_paths))
+  }
   if (!sbert_onnx_is_installed()) {
     stop(
       "ONNX Runtime is not installed. Run sbert_install_runtime() explicitly first.",

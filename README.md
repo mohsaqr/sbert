@@ -105,6 +105,43 @@ Term weighting supports the class-based TF-IDF, BM25 (`weighting = "bm25"`), and
 square-root (`reduce_frequent_words = TRUE`) schemes of Mendonca and Figueira
 (2025).
 
+For very large corpora there is an instant-speed tier: `potion-base-8M`
+is a static (Model2Vec) model whose encoding is a token lookup and mean in
+pure base R — around 10,000 sentences per second, no ONNX involved, with
+the same pinning, verification, and verbs as every other model:
+
+```r
+sbert_model_download("potion-base-8M")   # 30 MB
+fast <- sbert_load_model("potion-base-8M")
+embeddings <- sbert_encode(text, model = fast)
+```
+
+Topic models can be guided: name your topics and seed them with words or
+descriptions, and the seeds become the first centroids — initialization
+only by default, frozen with `fixed_seeds = TRUE` (zero-shot assignment):
+
+```r
+sbert_topics(
+  text,
+  n_topics = 10,
+  seeds = c(
+    motivation = "student motivation and engagement",
+    assessment = "grading feedback and assessment"
+  )
+)
+```
+
+Around the topic model, four utilities cover the everyday analysis moves:
+
+```r
+sbert_keywords(text, n = 5)                        # embedding-ranked keywords (MMR)
+sbert_stopwords(add = c("students", "learning"))   # exclude corpus vocabulary
+sbert_select_topics(text, n_topics = c(10, 20, 30), embeddings = embeddings)
+hierarchy <- sbert_hierarchy(topic_model)          # which topics are neighbors?
+plot(hierarchy)                                    # labeled dendrogram
+smaller <- sbert_reduce(topic_model, 12)           # merge down, keep all verbs
+```
+
 Documents can be split into sentences, clauses, or phrases before embedding,
 entirely offline and deterministically:
 

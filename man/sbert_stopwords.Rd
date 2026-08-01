@@ -2,19 +2,29 @@
 % Please edit documentation in R/topics.R
 \name{sbert_stopwords}
 \alias{sbert_stopwords}
-\title{Obtain Built-in Topic Stop Words}
+\title{Obtain and Adjust the Topic Stop-Word List}
 \usage{
-sbert_stopwords(language = "en")
+sbert_stopwords(language = "en", add = NULL, remove = NULL)
 }
 \arguments{
 \item{language}{Currently only `"en"` is supported.}
+
+\item{add}{Character vector of extra words to exclude (matched
+case-insensitively).}
+
+\item{remove}{Character vector of words to drop from the list.}
 }
 \value{
 A sorted character vector of lowercase stop words.
 }
 \description{
-Obtain Built-in Topic Stop Words
+Returns the stop words excluded from term extraction and keyword
+candidates. `add` extends the list — the standard way to remove a
+corpus-wide vocabulary from topic labels (words every document shares
+carry no discriminative information). `remove` un-lists built-in entries
+whose surface form is meaningful in a specific corpus.
 }
 \examples{
 head(sbert_stopwords())
+sbert_stopwords(add = c("students", "learning"), remove = "against")
 }

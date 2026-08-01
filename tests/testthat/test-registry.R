@@ -6,7 +6,7 @@ testthat::test_that("sbert_models lists every pinned model tidily", {
     names(models),
     c(
       "model", "dimensions", "max_tokens", "languages", "pooling",
-      "prefix", "size_mb", "license", "id", "revision"
+      "prefix", "engine", "size_mb", "license", "id", "revision"
     )
   )
   testthat::expect_identical(
@@ -15,7 +15,8 @@ testthat::test_that("sbert_models lists every pinned model tidily", {
   )
   testthat::expect_gte(nrow(models), 4L)
   testthat::expect_identical(models$model[[1L]], "all-MiniLM-L6-v2")
-  testthat::expect_true(all(models$dimensions %in% c(384L, 512L, 768L, 1024L)))
+  testthat::expect_true(all(models$engine %in% c("onnx", "static")))
+  testthat::expect_true(all(models$dimensions %in% c(256L, 384L, 512L, 768L, 1024L)))
   testthat::expect_true(all(models$max_tokens >= 128L))
   testthat::expect_true(all(models$size_mb > 0))
   testthat::expect_true(all(grepl("^[A-Za-z0-9-]+/", models$id)))
@@ -26,10 +27,17 @@ testthat::test_that("sbert_models lists every pinned model tidily", {
 testthat::test_that("every registry manifest is internally consistent", {
   registry <- sbert:::.sbert_registry
   for (manifest in registry) {
-    testthat::expect_identical(
-      manifest$artifacts$file,
-      c("model.onnx", "tokenizer.json")
-    )
+    if (identical(manifest$type, "static")) {
+      testthat::expect_identical(
+        manifest$artifacts$file,
+        c("model.safetensors", "tokenizer.json", "config.json")
+      )
+    } else {
+      testthat::expect_identical(
+        manifest$artifacts$file,
+        c("model.onnx", "tokenizer.json")
+      )
+    }
     testthat::expect_true(all(grepl("^[0-9a-f]{64}$", manifest$artifacts$sha256)))
     testthat::expect_true(all(manifest$artifacts$bytes > 0))
     testthat::expect_type(manifest$token_type_ids, "logical")
@@ -37,7 +45,9 @@ testthat::test_that("every registry manifest is internally consistent", {
     testthat::expect_true(nzchar(manifest$pad_token))
     testthat::expect_true(manifest$pooling %in% c("mean", "cls"))
     testthat::expect_type(manifest$prefix, "character")
-    testthat::expect_true(manifest$dimension %in% c(384L, 512L, 768L, 1024L))
+    testthat::expect_true(
+      manifest$dimension %in% c(256L, 384L, 512L, 768L, 1024L)
+    )
   }
   # the two multilingual models share the identical XLM-R tokenizer artifact
   testthat::expect_identical(

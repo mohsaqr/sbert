@@ -1,5 +1,51 @@
 # sbert 0.4.0
 
+## Static embeddings (instant-speed tier)
+
+- New pinned model `potion-base-8M` (Model2Vec static embeddings, MIT):
+  encoding is a token-lookup and mean in pure base R — no ONNX session —
+  which makes it roughly two orders of magnitude faster than transformer
+  models (10,000 sentences in under a second) at a modest quality cost.
+  Loaded through the same verbs (`sbert_model_download()`,
+  `sbert_load_model("potion-base-8M")`, `sbert_encode()`); the safetensors
+  weight matrix is read with a minimal base-R reader and verified by
+  SHA-256 like every other artifact. `sbert_models(detail = TRUE)` gains
+  an `engine` column ("onnx" or "static"). Numerical parity with Python
+  `model2vec`: max abs diff 3.3e-08.
+
+## Seeded (guided) topics
+
+- `sbert_topics()` gains `seeds`, `seed_embeddings`, and `fixed_seeds`:
+  supply seed words or topic descriptions and they become the first
+  cluster centroids. Seeded topics keep their position (topic i is seed i,
+  never reordered by size) and take the seed's name as their label when
+  `seeds` is named. Remaining topics up to `n_topics` are initialized
+  deterministically away from the seeds. With `fixed_seeds = TRUE` the
+  centroids never move — documents are zero-shot assigned to the nearest
+  seed, and seeded topics may legitimately be empty.
+
+## Analysis utilities
+
+- New `sbert_keywords()`: embedding-based keyword and phrase extraction
+  (the KeyBERT design) — each document's own unigrams and n-grams are
+  embedded with the same model, ranked by cosine similarity to the
+  document, and selected by maximal marginal relevance (`diversity`
+  argument) so keywords are relevant without being redundant.
+- `sbert_stopwords()` gains `add` and `remove`: exclude a corpus-wide
+  vocabulary from topic terms and keyword candidates, or un-list built-in
+  entries.
+- New `sbert_select_topics()`: fits the model across candidate topic
+  counts on one shared embedding matrix and returns coherence, diversity,
+  and between-topic variance share per count — granularity chosen by
+  numbers, not habit.
+- New `sbert_hierarchy()`: deterministic agglomerative merge tree of the
+  topic centroids (cosine distance) with a tidy merge table, labeled
+  dendrogram plot, and readable print.
+- New `sbert_reduce()`: cuts the hierarchy at a target count and rebuilds
+  a full `sbert_topic_model` (merged assignments, recomputed centroids,
+  terms, labels, sizes, representatives) — every downstream verb works on
+  the reduced model unchanged.
+
 ## Context-blended segment embeddings
 
 - New `sbert_blend()`: context-aware embeddings for segments — each segment

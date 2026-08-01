@@ -314,6 +314,33 @@
       ),
       stringsAsFactors = FALSE
     )
+  ),
+  "potion-base-8M" = list(
+    id = "minishlab/potion-base-8M",
+    short_name = "potion-base-8M",
+    revision = "bf8b056651a2c21b8d2565580b8569da283cab23",
+    license = "MIT",
+    type = "static",
+    dimension = 256L,
+    # Static lookup has no attention window; the config's nominal limit.
+    max_length = 1000000L,
+    languages = "English",
+    pad_token = "[PAD]",
+    pad_id = 0L,
+    token_type_ids = FALSE,
+    pooling = "mean",
+    prefix = "",
+    artifacts = data.frame(
+      file = c("model.safetensors", "tokenizer.json", "config.json"),
+      remote_path = c("model.safetensors", "tokenizer.json", "config.json"),
+      bytes = c(30236760, 683666, 202),
+      sha256 = c(
+        "f65d0f325faadc1e121c319e2faa41170d3fa07d8c89abd48ca5358d9a223de2",
+        "e67e803f624fb4d67dea1c730d06e1067e1b14d830e2c2202569e3ef0f70bb50",
+        "2a6ac0e9aaa356a68a5688070db78fc3a464fefe85d2f06a1905ce3718687553"
+      ),
+      stringsAsFactors = FALSE
+    )
   )
 )
 
@@ -373,6 +400,13 @@ sbert_models <- function(detail = FALSE) {
     languages = vapply(.sbert_registry, `[[`, character(1), "languages"),
     pooling = vapply(.sbert_registry, `[[`, character(1), "pooling"),
     prefix = vapply(.sbert_registry, `[[`, character(1), "prefix"),
+    engine = vapply(
+      .sbert_registry,
+      function(manifest) {
+        if (is.null(manifest$type)) "onnx" else manifest$type
+      },
+      character(1)
+    ),
     size_mb = round(
       vapply(
         .sbert_registry,

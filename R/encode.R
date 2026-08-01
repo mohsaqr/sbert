@@ -149,6 +149,14 @@ encode_sbert_batch <- function(model, text, normalize) {
     !is.na(normalize)
   )
 
+  if (inherits(model, "sbert_static_model")) {
+    pooled <- encode_static_batch(model, text)
+    if (normalize) {
+      pooled <- normalize_rows(pooled)
+    }
+    return(pooled)
+  }
+
   inputs <- prepare_sbert_inputs(
     text,
     model$tokenizer,

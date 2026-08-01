@@ -19,7 +19,10 @@ sbert_topics(
   weighting = c("ctfidf", "bm25"),
   reduce_frequent_words = FALSE,
   stem = FALSE,
-  keep_embeddings = FALSE
+  keep_embeddings = FALSE,
+  seeds = NULL,
+  seed_embeddings = NULL,
+  fixed_seeds = FALSE
 )
 }
 \arguments{
@@ -63,6 +66,25 @@ frequent surface form of each stem. Requires the `SnowballC` package.}
 
 \item{keep_embeddings}{Whether to retain normalized document embeddings in
 the returned object.}
+
+\item{seeds}{Optional guided topics: a character vector (or list of
+character vectors, collapsed with spaces) of seed words or topic
+descriptions — one element per seeded topic. Seeds are embedded and
+become the first `length(seeds)` cluster centroids; remaining topics
+(up to `n_topics`) are initialized away from the seeds. Seeded topics
+keep their position — topic i is seed i, never reordered by size — and
+a named `seeds` vector names those topics' labels. With precomputed
+`embeddings`, supply `seed_embeddings` as well.}
+
+\item{seed_embeddings}{Optional matrix of seed embeddings (one row per
+seed, same dimension as the document embeddings); required when
+`seeds` is used together with precomputed `embeddings`.}
+
+\item{fixed_seeds}{When `TRUE`, seed centroids are frozen and documents
+are simply assigned to the nearest seed (zero-shot classification into
+the seeded topics; `n_topics` must equal the number of seeds, and
+topics may be empty). When `FALSE` (default), seeds only initialize
+the clustering and the data can move the centroids.}
 }
 \value{
 An object of class `sbert_topic_model` containing document

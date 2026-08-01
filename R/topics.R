@@ -16,24 +16,37 @@
   "your", "yours", "yourself", "yourselves"
 )
 
-#' Obtain Built-in Topic Stop Words
+#' Obtain and Adjust the Topic Stop-Word List
+#'
+#' Returns the stop words excluded from term extraction and keyword
+#' candidates. `add` extends the list — the standard way to remove a
+#' corpus-wide vocabulary from topic labels (words every document shares
+#' carry no discriminative information). `remove` un-lists built-in entries
+#' whose surface form is meaningful in a specific corpus.
 #'
 #' @param language Currently only `"en"` is supported.
+#' @param add Character vector of extra words to exclude (matched
+#'   case-insensitively).
+#' @param remove Character vector of words to drop from the list.
 #' @return A sorted character vector of lowercase stop words.
 #' @export
 #' @examples
 #' head(sbert_stopwords())
-sbert_stopwords <- function(language = "en") {
+#' sbert_stopwords(add = c("students", "learning"), remove = "against")
+sbert_stopwords <- function(language = "en", add = NULL, remove = NULL) {
   stopifnot(
     is.character(language),
     length(language) == 1L,
     !is.na(language),
-    nzchar(language)
+    nzchar(language),
+    is.null(add) || (is.character(add) && !anyNA(add)),
+    is.null(remove) || (is.character(remove) && !anyNA(remove))
   )
   if (!identical(language, "en")) {
     stop("Only the built-in English stop-word list is currently available.", call. = FALSE)
   }
-  sort(unique(.sbert_english_stopwords))
+  words <- unique(c(.sbert_english_stopwords, tolower(add)))
+  sort(setdiff(words, tolower(remove)))
 }
 
 tokenize_topic_documents <- function(text, stopwords, min_token_length, stem = FALSE) {
@@ -246,7 +259,7 @@ topic_term_scores <- function(
   )
 }
 
-deterministic_topic_centers <- function(embeddings, n_topics) {
+deterministic_topic_centers <- function(embeddings, n_topics, existing_centers = NULL) {
   stopifnot(
     is.matrix(embeddings),
     is.numeric(embeddings),
@@ -256,9 +269,11 @@ deterministic_topic_centers <- function(embeddings, n_topics) {
     all(is.finite(embeddings)),
     is.numeric(n_topics),
     length(n_topics) == 1L,
-    n_topics >= 2,
+    n_topics >= 1,
     n_topics == as.integer(n_topics),
-    n_topics <= nrow(embeddings)
+    n_topics <= nrow(embeddings),
+    is.null(existing_centers) ||
+      (is.matrix(existing_centers) && ncol(existing_centers) == ncol(embeddings))
   )
 
   distinct_rows <- !duplicated(as.data.frame(embeddings))
@@ -269,29 +284,43 @@ deterministic_topic_centers <- function(embeddings, n_topics) {
     )
   }
 
-  global_center <- matrix(
-    colMeans(embeddings),
-    nrow = nrow(embeddings),
-    ncol = ncol(embeddings),
-    byrow = TRUE
-  )
-  first_center <- which.max(rowSums((embeddings - global_center)^2))
+  # Squared distance from every embedding row to its nearest given center.
+  minimum_distance_to <- function(centers_matrix) {
+    distance_matrix <- vapply(
+      seq_len(nrow(centers_matrix)),
+      function(center_row) {
+        center <- matrix(
+          centers_matrix[center_row, ],
+          nrow = nrow(embeddings),
+          ncol = ncol(embeddings),
+          byrow = TRUE
+        )
+        rowSums((embeddings - center)^2)
+      },
+      numeric(nrow(embeddings))
+    )
+    apply(distance_matrix, 1L, min)
+  }
+
+  first_center <- if (is.null(existing_centers) || nrow(existing_centers) == 0L) {
+    global_center <- matrix(
+      colMeans(embeddings),
+      nrow = nrow(embeddings),
+      ncol = ncol(embeddings),
+      byrow = TRUE
+    )
+    which.max(rowSums((embeddings - global_center)^2))
+  } else {
+    # Seeded: the first free center is the point least covered by the seeds.
+    which.max(minimum_distance_to(existing_centers))
+  }
   selected <- Reduce(
     function(selected_rows, unused_iteration) {
-      distance_matrix <- vapply(
-        selected_rows,
-        function(center_row) {
-          center <- matrix(
-            embeddings[center_row, ],
-            nrow = nrow(embeddings),
-            ncol = ncol(embeddings),
-            byrow = TRUE
-          )
-          rowSums((embeddings - center)^2)
-        },
-        numeric(nrow(embeddings))
+      reference_centers <- rbind(
+        existing_centers,
+        embeddings[selected_rows, , drop = FALSE]
       )
-      minimum_distances <- apply(distance_matrix, 1L, min)
+      minimum_distances <- minimum_distance_to(reference_centers)
       minimum_distances[selected_rows] <- -Inf
       c(selected_rows, which.max(minimum_distances))
     },
@@ -302,7 +331,14 @@ deterministic_topic_centers <- function(embeddings, n_topics) {
   embeddings[selected, , drop = FALSE]
 }
 
-fit_embedding_topics <- function(embeddings, n_topics, iter_max) {
+fit_embedding_topics <- function(
+  embeddings,
+  n_topics,
+  iter_max,
+  initial_centers = NULL,
+  reorder = TRUE,
+  fixed = FALSE
+) {
   stopifnot(
     is.matrix(embeddings),
     is.numeric(embeddings),
@@ -311,33 +347,94 @@ fit_embedding_topics <- function(embeddings, n_topics, iter_max) {
     is.numeric(iter_max),
     length(iter_max) == 1L,
     iter_max >= 1,
-    iter_max == as.integer(iter_max)
+    iter_max == as.integer(iter_max),
+    is.null(initial_centers) ||
+      (is.matrix(initial_centers) && nrow(initial_centers) == n_topics),
+    is.logical(reorder),
+    length(reorder) == 1L,
+    is.logical(fixed),
+    length(fixed) == 1L,
+    !fixed || !is.null(initial_centers)
   )
 
   normalized_embeddings <- normalize_embedding_rows(embeddings)
-  initial_centers <- deterministic_topic_centers(
-    normalized_embeddings,
-    n_topics
-  )
-  fit <- tryCatch(
-    stats::kmeans(
-      normalized_embeddings,
-      centers = initial_centers,
-      iter.max = as.integer(iter_max),
-      algorithm = "Lloyd"
-    ),
-    error = function(error_condition) {
-      stop(
-        sprintf("Topic clustering failed: %s", conditionMessage(error_condition)),
-        call. = FALSE
-      )
-    }
-  )
-  if (length(fit$size) != n_topics || any(fit$size <= 0L)) {
-    stop("Topic clustering produced an empty topic.", call. = FALSE)
+  starting_centers <- if (is.null(initial_centers)) {
+    deterministic_topic_centers(normalized_embeddings, n_topics)
+  } else {
+    normalize_embedding_rows(initial_centers)
   }
 
-  topic_order <- order(-fit$size, seq_len(n_topics))
+  if (fixed) {
+    # Zero-shot assignment: centroids stay exactly at the supplied centers and
+    # every document joins its nearest one. Topics may legitimately be empty.
+    assignment <- max.col(
+      normalized_embeddings %*% t(starting_centers),
+      ties.method = "first"
+    )
+    sizes <- tabulate(assignment, nbins = n_topics)
+    fixed_withinss <- vapply(
+      seq_len(n_topics),
+      function(topic_id) {
+        member_rows <- normalized_embeddings[
+          assignment == topic_id, ,
+          drop = FALSE
+        ]
+        if (nrow(member_rows) == 0L) {
+          return(0)
+        }
+        center <- matrix(
+          starting_centers[topic_id, ],
+          nrow = nrow(member_rows),
+          ncol = ncol(starting_centers),
+          byrow = TRUE
+        )
+        sum((member_rows - center)^2)
+      },
+      numeric(1)
+    )
+    global_center <- matrix(
+      colMeans(normalized_embeddings),
+      nrow = nrow(normalized_embeddings),
+      ncol = ncol(normalized_embeddings),
+      byrow = TRUE
+    )
+    totss <- sum((normalized_embeddings - global_center)^2)
+    fit <- list(
+      cluster = as.integer(assignment),
+      centers = unname(starting_centers),
+      size = as.integer(sizes),
+      withinss = fixed_withinss,
+      totss = totss,
+      tot.withinss = sum(fixed_withinss),
+      betweenss = totss - sum(fixed_withinss),
+      iter = 0L
+    )
+  } else {
+    fit <- tryCatch(
+      stats::kmeans(
+        normalized_embeddings,
+        centers = starting_centers,
+        iter.max = as.integer(iter_max),
+        algorithm = "Lloyd"
+      ),
+      error = function(error_condition) {
+        stop(
+          sprintf("Topic clustering failed: %s", conditionMessage(error_condition)),
+          call. = FALSE
+        )
+      }
+    )
+    if (length(fit$size) != n_topics || any(fit$size <= 0L)) {
+      stop("Topic clustering produced an empty topic.", call. = FALSE)
+    }
+  }
+
+  topic_order <- if (reorder) {
+    order(-fit$size, seq_len(n_topics))
+  } else {
+    # Seeded models keep centroid identity: topic i stays seed i.
+    seq_len(n_topics)
+  }
   new_topic_id <- integer(n_topics)
   new_topic_id[topic_order] <- seq_len(n_topics)
   topic <- as.integer(new_topic_id[fit$cluster])
@@ -366,7 +463,11 @@ fit_embedding_topics <- function(embeddings, n_topics, iter_max) {
       tot_withinss = unname(fit$tot.withinss),
       betweenss = unname(fit$betweenss),
       iterations = as.integer(fit$iter),
-      algorithm = "deterministic k-means (Lloyd)"
+      algorithm = if (fixed) {
+        "fixed seed centroids (nearest-centroid assignment)"
+      } else {
+        "deterministic k-means (Lloyd)"
+      }
     )
   )
 }
@@ -464,6 +565,22 @@ encode_topic_documents <- function(text, model, batch_size) {
 #' @param stem Whether to collapse inflected forms (for example `animals` and
 #'   `animal`) onto a shared Porter stem before scoring, displaying the most
 #'   frequent surface form of each stem. Requires the `SnowballC` package.
+#' @param seeds Optional guided topics: a character vector (or list of
+#'   character vectors, collapsed with spaces) of seed words or topic
+#'   descriptions — one element per seeded topic. Seeds are embedded and
+#'   become the first `length(seeds)` cluster centroids; remaining topics
+#'   (up to `n_topics`) are initialized away from the seeds. Seeded topics
+#'   keep their position — topic i is seed i, never reordered by size — and
+#'   a named `seeds` vector names those topics' labels. With precomputed
+#'   `embeddings`, supply `seed_embeddings` as well.
+#' @param seed_embeddings Optional matrix of seed embeddings (one row per
+#'   seed, same dimension as the document embeddings); required when
+#'   `seeds` is used together with precomputed `embeddings`.
+#' @param fixed_seeds When `TRUE`, seed centroids are frozen and documents
+#'   are simply assigned to the nearest seed (zero-shot classification into
+#'   the seeded topics; `n_topics` must equal the number of seeds, and
+#'   topics may be empty). When `FALSE` (default), seeds only initialize
+#'   the clustering and the data can move the centroids.
 #' @param keep_embeddings Whether to retain normalized document embeddings in
 #'   the returned object.
 #' @return An object of class `sbert_topic_model` containing document
@@ -493,7 +610,10 @@ sbert_topics <- function(
   weighting = c("ctfidf", "bm25"),
   reduce_frequent_words = FALSE,
   stem = FALSE,
-  keep_embeddings = FALSE
+  keep_embeddings = FALSE,
+  seeds = NULL,
+  seed_embeddings = NULL,
+  fixed_seeds = FALSE
 ) {
   weighting <- match.arg(weighting)
   stopifnot(
@@ -595,10 +715,78 @@ sbert_topics <- function(
     )
   }
 
+  seed_labels <- NULL
+  initial_centers <- NULL
+  if (!is.null(seeds)) {
+    seed_texts <- if (is.list(seeds)) {
+      vapply(seeds, function(seed) paste(seed, collapse = " "), character(1))
+    } else {
+      seeds
+    }
+    stopifnot(
+      is.character(seed_texts),
+      length(seed_texts) >= 1L,
+      !anyNA(seed_texts),
+      all(nzchar(trimws(seed_texts))),
+      is.logical(fixed_seeds),
+      length(fixed_seeds) == 1L,
+      !is.na(fixed_seeds)
+    )
+    n_seeds <- length(seed_texts)
+    if (fixed_seeds && n_seeds != n_topics) {
+      stop(
+        "With fixed_seeds = TRUE, n_topics must equal the number of seeds.",
+        call. = FALSE
+      )
+    }
+    if (n_seeds > n_topics) {
+      stop("More seeds than topics; raise n_topics.", call. = FALSE)
+    }
+    if (is.null(seed_embeddings)) {
+      if (is.null(model)) {
+        stop(
+          "Seeds need the encoding model; with precomputed embeddings, ",
+          "supply seed_embeddings as well.",
+          call. = FALSE
+        )
+      }
+      seed_embeddings <- encode_topic_documents(
+        unname(seed_texts),
+        model,
+        batch_size = as.integer(batch_size)
+      )
+    }
+    stopifnot(
+      is.matrix(seed_embeddings),
+      nrow(seed_embeddings) == n_seeds,
+      ncol(seed_embeddings) == ncol(embedding_matrix),
+      !anyNA(seed_embeddings),
+      all(is.finite(seed_embeddings))
+    )
+    seed_centers <- normalize_embedding_rows(seed_embeddings)
+    free_topics <- as.integer(n_topics) - n_seeds
+    initial_centers <- if (free_topics > 0L) {
+      rbind(
+        seed_centers,
+        deterministic_topic_centers(
+          normalize_embedding_rows(embedding_matrix),
+          free_topics,
+          existing_centers = seed_centers
+        )
+      )
+    } else {
+      seed_centers
+    }
+    seed_labels <- names(seed_texts)
+  }
+
   clustering <- fit_embedding_topics(
     embedding_matrix,
     as.integer(n_topics),
-    as.integer(iter_max)
+    as.integer(iter_max),
+    initial_centers = initial_centers,
+    reorder = is.null(seeds),
+    fixed = !is.null(seeds) && isTRUE(fixed_seeds)
   )
   document_names <- names(text)
   if (is.null(document_names)) {
@@ -638,6 +826,10 @@ sbert_topics <- function(
     },
     character(1)
   )
+  if (!is.null(seed_labels) && any(nzchar(seed_labels))) {
+    named_seeds <- which(nzchar(seed_labels))
+    topic_labels[named_seeds] <- seed_labels[named_seeds]
+  }
   topics <- data.frame(
     topic = seq_len(n_topics),
     label = topic_labels,
@@ -675,7 +867,15 @@ sbert_topics <- function(
         weighting = weighting,
         reduce_frequent_words = reduce_frequent_words,
         stem = stem,
-        stopwords = stopwords
+        stopwords = stopwords,
+        seeds = if (is.null(seeds)) NULL else unname(
+          if (is.list(seeds)) {
+            vapply(seeds, function(seed) paste(seed, collapse = " "), character(1))
+          } else {
+            seeds
+          }
+        ),
+        fixed_seeds = !is.null(seeds) && isTRUE(fixed_seeds)
       )
     ),
     class = "sbert_topic_model"
