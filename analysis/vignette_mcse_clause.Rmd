@@ -1,0 +1,279 @@
+---
+title: "Thirty Semantic Topics in Computing Education Research — an sbert Tutorial"
+author: "sbert 0.4.0"
+date: "`r format(Sys.Date())`"
+output:
+  html_document:
+    toc: true
+    toc_depth: 1
+    theme: cosmo
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE, message = FALSE, warning = FALSE,
+  fig.width = 7, fig.height = 4.2, dpi = 150, out.width = "100%"
+)
+suppressMessages(devtools::load_all("..", quiet = TRUE))
+fig_dir <- file.path("..", "tmp", "vignette_mcse_clause_figs")
+dir.create(fig_dir, recursive = TRUE, showWarnings = FALSE)
+mcse_path <- file.path(
+  "/Users/mohammedsaqr/Library/CloudStorage/GoogleDrive-saqr@saqr.me",
+  "Other computers/My MacBook Pro (1)/AKA/Networks_CSE/MCSE_gold.RDS"
+)
+```
+
+# Why this tutorial
+
+The MCSE corpus holds 16,453 bibliographic records of computing education
+research. A field of that size cannot be read; it has to be mapped, and the
+map has to be defensible — reviewers will ask why *these* topics and not
+others. This tutorial repeats the deterministic workflow of the Levebee
+feedback tutorial on a much harder corpus: long academic abstracts instead
+of one-line messages, thirty topics instead of six, and a model chosen for
+its input length rather than taken off the shelf.
+
+Thirty is a *review granularity*, not a discovered truth: label-invariant
+agreement between alternative runs of models this size is moderate, so the
+partition should be read as one auditable organization of the field at a
+chosen resolution. What makes it usable is that every step below is exactly
+reproducible, and every topic ships with its own evidence: two keyword views
+and the abstracts nearest its centroid.
+
+| Component | Verb | Question it answers |
+|---|---|---|
+| Topic model | `sbert_topics()` | What areas exist, and how big are they? |
+| Evaluation | `sbert_coherence()`, `sbert_diversity()` | Which topics are trustworthy? |
+| Frequent keywords | `sbert_beta()` | What does each area talk about most? |
+| Distinctive keywords | `topic_model$terms` | What does it talk about that others do not? |
+| Evidence | `sbert_segment()` + `predict()` | Which real sentences support the label? |
+
+```{r library, eval=FALSE}
+library(sbert)
+```
+
+# The corpus: titles plus abstracts
+
+Titles carry the claim, abstracts carry the content; embedding them together
+gives each paper one vector that reflects both. Records with no usable
+abstract (missing, or the literal "[NO ABSTRACT AVAILABLE]" placeholder) are
+dropped, and the corpus is deduplicated — the same paper indexed twice
+should vote once.
+
+```{r data}
+mcse <- readRDS(mcse_path)
+usable <- subset(mcse, !is.na(AB) & !startsWith(trimws(AB), "[NO ABSTRACT"))
+corpus <- sbert_dedupe(paste(trimws(usable$TI), trimws(usable$AB), sep = " — "))
+nrow(corpus)
+```
+
+# Embedding long documents
+
+Model choice is a length decision here. The default MiniLM truncates at 256
+word pieces — fine for feedback messages, lossy for 139-word abstracts with
+titles attached. `multi-qa-MiniLM-L6-cos-v1` keeps the same speed and
+384-dimensional space but accepts 512 word pieces, which covers almost every
+title-plus-abstract in this corpus without truncation
+(`sbert_models()` lists the menu, including two 8,192-token models for even
+longer documents). Encoding 15,551 documents is real work, so the model is
+loaded once with eight threads; the run takes a few minutes and is
+bit-identical every time.
+
+```{r embeddings}
+qa_minilm <- sbert_load_model("multi-qa-MiniLM-L6-cos-v1", threads = 8L)
+embeddings <- sbert_encode(corpus$text, model = qa_minilm)
+```
+
+# The thirty-topic model
+
+```{r model}
+topic_model <- sbert_topics(
+  corpus$text,
+  n_topics = 30,
+  embeddings = embeddings,
+  n_terms = 8,
+  n_representatives = 3
+)
+topic_model
+```
+
+## Should you trust these topics?
+
+With thirty topics the evaluation table is not a formality — it is the
+reading order. NPMI coherence rewards topics whose top terms genuinely
+co-occur in their abstracts; the topics at the top of this table have a
+vocabulary of their own, and the ones at the bottom should be interpreted
+from their representative abstracts, not their keywords.
+
+```{r evaluate}
+summary(topic_model)
+```
+
+```{r coherence}
+sbert_coherence(topic_model, measure = "npmi")
+```
+
+## Size on two scales
+
+Unlike the Levebee corpus, this one barely repeats (15,660 usable records,
+15,551 distinct texts), so the distinct and weighted shares nearly coincide
+— the interesting quantity is plain size. A handful of large topics
+covering the field's core and a long tail of specialized areas is the
+expected shape for a research literature.
+
+```{r sizes}
+plot(topic_model, type = "sizes")
+```
+
+```{r weighted}
+sbert_topic_sizes(topic_model, weights = corpus$n)
+```
+
+# Two keyword views, one topic
+
+`sbert_beta()` is the generative view — the words a topic uses most, which
+in a single-discipline corpus is dominated by the field's shared vocabulary
+("students", "programming", "course"). The class-based TF-IDF scores in
+`topic_model$terms` are the discriminative view — the words a topic owns.
+In a corpus like this the two lists disagree more than they did for the
+feedback messages, and that disagreement is the point: the counts tell you
+the topic belongs to computing education; only the TF-IDF terms tell you
+which part of it.
+
+```{r beta}
+beta <- sbert_beta(topic_model)
+head(subset(beta, topic == 1), 8)
+```
+
+```{r terms}
+head(subset(topic_model$terms, topic == 1), 8)
+```
+
+# Representative sentences, not papers
+
+A whole abstract is poor evidence for a topic label: it buries the one
+claim that matters under methods and boilerplate. The evidence should be
+single statements — and *which* statements matters as much as how they are
+cut. `sbert_segment()` splits every abstract at clause level (sentence ends
+plus colons, semicolons, and subordinating hinges), so structured-abstract
+headers ("CONTEXT:", "RESULTS:") stand apart and stacked clauses do not
+glue into paragraphs. `sbert_representatives()` then chooses each topic's
+evidence by *distinctiveness margin* rather than raw closeness: the nearest
+unit to a centroid is systematically the longest one (centroids are
+averages of whole abstracts, and long units resemble whole abstracts),
+whereas the unit with the widest margin between its own topic and the
+second-best is the statement that is unambiguously about this topic and no
+other — naturally short and pointed.
+
+```{r sentences}
+abstract_sentences <- sbert_segment(unique(trimws(usable$AB)), merge_below = 5)
+sentence_embeddings <- sbert_encode(abstract_sentences$text, model = qa_minilm)
+evidence <- sbert_representatives(
+  topic_model,
+  abstract_sentences$text,
+  embeddings = sentence_embeddings
+)
+```
+
+# The topics, panel by panel
+
+Each panel pairs the two keyword bars with the topic's three
+highest-margin statements, shown verbatim — exactly the strings that were
+embedded — with the distance to the topic centroid in parentheses. The
+statements are the ground truth: the bars summarize, the statements
+verify.
+
+```{r panel-helper, include=FALSE}
+palette_colors <- sbert_palette(nrow(topic_model$topics))
+
+draw_topic_panel <- function(model, beta, topic_id, color, path) {
+  count_rows <- head(subset(beta, topic == topic_id), 8)
+  score_rows <- head(subset(model$terms, topic == topic_id), 8)
+  png(path, width = 2100, height = 1100, res = 300)
+  op <- par(
+    mfrow = c(1, 2), mar = c(2.6, 7.2, 2.2, 1.2),
+    mgp = c(1.5, 0.35, 0), tcl = -0.2, family = "sans"
+  )
+  on.exit({par(op); dev.off()}, add = TRUE)
+  draw_bar_column(
+    values = rev(count_rows$count),
+    labels = rev(count_rows$term),
+    title = "Within-topic count",
+    color = color,
+    value_format = "%d"
+  )
+  draw_bar_column(
+    values = rev(score_rows$score),
+    labels = rev(score_rows$term),
+    title = "Class-based TF-IDF",
+    color = grDevices::adjustcolor(color, alpha.f = 0.55),
+    value_format = "%.3f"
+  )
+  invisible(path)
+}
+
+draw_bar_column <- function(values, labels, title, color, value_format) {
+  positions <- barplot(
+    values,
+    names.arg = labels,
+    horiz = TRUE,
+    las = 1,
+    border = NA,
+    col = color,
+    xlim = c(0, max(values) * 1.22),
+    cex.names = 0.72,
+    cex.axis = 0.6,
+    axes = FALSE
+  )
+  text(
+    x = values,
+    y = positions,
+    labels = sprintf(value_format, values),
+    pos = 4,
+    cex = 0.6,
+    col = "grey30"
+  )
+  title(main = title, adj = 0, cex.main = 0.85, font.main = 2, line = 0.6)
+}
+```
+
+```{r panels, echo=FALSE, results="asis"}
+invisible(lapply(
+  seq_len(nrow(topic_model$topics)),
+  function(topic_id) {
+    topic_row <- subset(topic_model$topics, topic == topic_id)
+    cat(sprintf(
+      "# Topic %d — %s\n\n%d papers (%.1f%% of the corpus)\n\n",
+      topic_id,
+      topic_row$label,
+      topic_row$n_documents,
+      100 * topic_row$proportion
+    ))
+    figure_path <- file.path(fig_dir, sprintf("topic_%02d.png", topic_id))
+    draw_topic_panel(topic_model, beta, topic_id, palette_colors[[topic_id]], figure_path)
+    cat(sprintf("<img src=\"%s\" width=\"100%%\"/>\n\n", knitr::image_uri(figure_path)))
+    statements <- subset(evidence, topic == topic_id)
+    cat("**Representative statements**\n\n")
+    cat(sprintf(
+      "> %s *(%.3f)*\n\n",
+      statements$text,
+      statements$distance
+    ), sep = "")
+  }
+))
+```
+
+# Where to go from here
+
+`predict()` places any new abstract into this map without refitting;
+`sbert_membership()` grades papers that sit between areas;
+`sbert_gamma()` with `sbert_segment()` shows which individual sentences of
+an abstract belong to which topic. Two refinements are worth knowing for a
+publication-grade version: removing the corpus-wide search vocabulary from
+term extraction (it never affects the clustering, only the labels), and
+sweeping `n_topics` across candidate values with `sbert_coherence()` to
+justify the chosen granularity.
+
+```{r session, echo=FALSE}
+sessionInfo()$R.version$version.string
+```

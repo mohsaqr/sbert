@@ -1,0 +1,291 @@
+---
+title: "Feedback Translation Topic Model"
+subtitle: "Python-free Sentence-BERT analysis of 8,987 feedback records"
+date: "`r format(Sys.time(), '%Y-%m-%d')`"
+output:
+  html_document:
+    self_contained: true
+    toc: true
+    toc_float: true
+    code_folding: hide
+    theme: flatly
+params:
+  output_directory: "outputs/feedback_translation_topics"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = FALSE,
+  warning = FALSE,
+  message = FALSE,
+  fig.width = 10,
+  fig.height = 5,
+  dpi = 120
+)
+project_root <- normalizePath("..", mustWork = TRUE)
+artifact_directory <- file.path(project_root, params$output_directory)
+analysis_result <- readRDS(
+  file.path(artifact_directory, "feedback_translation_topic_model.rds")
+)
+assignments <- analysis_result$assignments
+topics <- analysis_result$topic_summary
+terms <- analysis_result$topic_terms
+representatives <- analysis_result$representatives
+diagnostics <- analysis_result$topic_count_diagnostics
+data_quality <- analysis_result$data_quality
+method <- analysis_result$method
+```
+
+<style>
+body { color: #243447; }
+h1, h2, h3 { color: #17365d; }
+.kpi-grid { display: grid; grid-template-columns: repeat(4, minmax(150px, 1fr)); gap: 14px; margin: 16px 0 24px; }
+.kpi { background: #f3f7fb; border-left: 5px solid #2d6a9f; border-radius: 6px; padding: 14px 16px; }
+.kpi .value { color: #17365d; font-size: 27px; font-weight: 700; line-height: 1.1; }
+.kpi .label { color: #5b6b7c; font-size: 12px; margin-top: 6px; text-transform: uppercase; letter-spacing: .04em; }
+.callout { background: #fff7df; border-left: 5px solid #e3a008; border-radius: 5px; padding: 14px 18px; margin: 16px 0 22px; }
+.topic-card { border: 1px solid #d9e2ec; border-radius: 7px; padding: 14px 18px; margin: 13px 0; background: #ffffff; }
+.topic-title { color: #17365d; font-size: 18px; font-weight: 700; }
+.topic-meta { color: #5b6b7c; margin: 4px 0 9px; }
+.terms { color: #2d6a9f; font-weight: 600; }
+table { font-size: 13px; }
+th { background: #2d6a9f !important; color: white !important; }
+@media (max-width: 800px) { .kpi-grid { grid-template-columns: repeat(2, minmax(130px, 1fr)); } }
+</style>
+
+```{r kpis, results='asis'}
+kpi_values <- c(
+  format(nrow(assignments), big.mark = ","),
+  format(sum(assignments$included), big.mark = ","),
+  format(length(unique(assignments$translation[assignments$included])), big.mark = ","),
+  as.character(nrow(topics))
+)
+kpi_labels <- c("Source rows", "Modeled rows", "Distinct translations", "Exploratory topics")
+kpi_html <- paste0(
+  '<div class="kpi"><div class="value">',
+  kpi_values,
+  '</div><div class="label">',
+  kpi_labels,
+  '</div></div>'
+)
+cat('<div class="kpi-grid">', paste(kpi_html, collapse = ""), '</div>')
+```
+
+<div class="callout">
+<strong>Interpretation note.</strong> This is an exploratory embedding-based topic model, not a validated taxonomy. Topic IDs are arbitrary; automatic labels come from ranked class-based TF-IDF terms. Cosine distance is proximity to a centroid, not a probability or confidence score. The supplied <code>translation</code> field was used as-is.
+</div>
+
+## Topic prevalence
+
+```{r topic-size-plot}
+topic_axis_label <- sprintf("T%d: %s", topics$topic, topics$topic_label)
+topic_color <- ifelse(
+  topics$topic %in% c(12L, 15L),
+  "#d99032",
+  "#2d6a9f"
+)
+graphics::par(mar = c(5, 15, 2, 1))
+graphics::barplot(
+  rev(topics$n_rows),
+  names.arg = rev(topic_axis_label),
+  horiz = TRUE,
+  las = 1,
+  col = rev(topic_color),
+  border = NA,
+  xlab = "Feedback rows",
+  main = "Rows assigned to each topic"
+)
+```
+
+The first five topics account for `r sprintf('%.1f%%', 100 * sum(topics$proportion[1:5]))` of modeled rows. This concentration reflects a template-heavy corpus: many records are variants of “between” instructions with different named objects.
+
+```{r topic-table}
+topic_display <- topics[
+  ,
+  c(
+    "topic",
+    "topic_label",
+    "n_rows",
+    "proportion",
+    "n_unique_translations",
+    "median_cosine_distance",
+    "p90_cosine_distance",
+    "top_terms"
+  )
+]
+topic_display$proportion <- sprintf("%.1f%%", 100 * topic_display$proportion)
+topic_display$median_cosine_distance <- sprintf(
+  "%.3f",
+  topic_display$median_cosine_distance
+)
+topic_display$p90_cosine_distance <- sprintf(
+  "%.3f",
+  topic_display$p90_cosine_distance
+)
+names(topic_display) <- c(
+  "Topic",
+  "Automatic label",
+  "Rows",
+  "Share",
+  "Unique texts",
+  "Median distance",
+  "P90 distance",
+  "Top terms"
+)
+knitr::kable(topic_display, format = "html", escape = TRUE)
+```
+
+## Topic profiles
+
+```{r topic-profiles, results='asis'}
+invisible(lapply(
+  seq_len(nrow(topics)),
+  function(topic_row) {
+    topic_id <- topics$topic[[topic_row]]
+    representative_rows <- representatives[
+      representatives$topic == topic_id & representatives$rank <= 3L,
+      c("rank", "translation", "cosine_distance_to_centroid"),
+      drop = FALSE
+    ]
+    names(representative_rows) <- c("Rank", "Representative translation", "Cosine distance")
+    representative_rows$`Cosine distance` <- sprintf(
+      "%.3f",
+      representative_rows$`Cosine distance`
+    )
+    cat(
+      '<div class="topic-card"><div class="topic-title">Topic ',
+      topic_id,
+      ': ',
+      htmltools::htmlEscape(topics$topic_label[[topic_row]]),
+      '</div><div class="topic-meta">',
+      format(topics$n_rows[[topic_row]], big.mark = ","),
+      ' rows · ',
+      sprintf("%.1f%%", 100 * topics$proportion[[topic_row]]),
+      ' of modeled feedback · ',
+      format(topics$n_unique_translations[[topic_row]], big.mark = ","),
+      ' unique translations</div><div class="terms">',
+      htmltools::htmlEscape(topics$top_terms[[topic_row]]),
+      '</div><br>',
+      sep = ""
+    )
+    print(knitr::kable(representative_rows, format = "html", escape = TRUE))
+    cat('</div>')
+  }
+))
+```
+
+## Six-topic solution
+
+The primary model uses six topics, as requested. Candidate counts from 4 through 16 were fitted with the same deterministic initialization and remain available in the diagnostics table for comparison. The six-topic result is a broader summary: because the corpus is dominated by repeated “between” task templates, large clusters combine several related phrasings and object variants.
+
+```{r diagnostics-plot}
+graphics::par(mar = c(5, 5, 2, 5))
+graphics::plot(
+  diagnostics$n_topics,
+  100 * diagnostics$between_total_ratio,
+  type = "b",
+  pch = 19,
+  col = "#2d6a9f",
+  xlab = "Number of topics",
+  ylab = "Between / total SS (%)",
+  main = "Topic-count diagnostics"
+)
+graphics::points(
+  diagnostics$n_topics[diagnostics$selected],
+  100 * diagnostics$between_total_ratio[diagnostics$selected],
+  pch = 21,
+  cex = 1.8,
+  bg = "#e3a008",
+  col = "#8a5a00"
+)
+```
+
+```{r diagnostics-table}
+diagnostic_display <- diagnostics[
+  ,
+  c(
+    "n_topics",
+    "calinski_harabasz",
+    "between_total_ratio",
+    "normalized_entropy",
+    "min_topic_size",
+    "median_topic_size",
+    "max_topic_size",
+    "selected"
+  )
+]
+diagnostic_display$between_total_ratio <- sprintf(
+  "%.1f%%",
+  100 * diagnostic_display$between_total_ratio
+)
+diagnostic_display$calinski_harabasz <- sprintf(
+  "%.1f",
+  diagnostic_display$calinski_harabasz
+)
+diagnostic_display$normalized_entropy <- sprintf(
+  "%.3f",
+  diagnostic_display$normalized_entropy
+)
+names(diagnostic_display) <- c(
+  "Topics",
+  "Calinski-Harabasz",
+  "Between/total SS",
+  "Normalized entropy",
+  "Smallest topic",
+  "Median topic",
+  "Largest topic",
+  "Selected"
+)
+knitr::kable(diagnostic_display, format = "html", escape = TRUE)
+```
+
+## Translation and data quality
+
+Eleven blank translations were excluded from modeling but retained in the row-level output. Repeated translations were embedded once for efficiency and then mapped back to all source rows, so their observed frequency still influences topic prevalence.
+
+The review flags are deliberately conservative screening indicators: `r sum(assignments$translation_has_cyrillic)` rows contain Cyrillic, `r sum(assignments$translation_has_non_ascii_latin)` contain accented non-ASCII Latin characters, and `r sum(assignments$source_equals_translation)` nonblank rows exactly equal the source. These categories overlap, and equality can be legitimate when the source is already English.
+
+```{r quality-table}
+quality_display <- data_quality
+names(quality_display) <- c("Metric", "Value")
+quality_display$Metric <- gsub("_", " ", quality_display$Metric)
+knitr::kable(quality_display, format = "html", escape = TRUE)
+```
+
+### Sample rows flagged for translation review
+
+```{r quality-examples}
+flagged_examples <- utils::head(
+  assignments[assignments$translation_review_flag, c(
+    "row_id",
+    "feedback",
+    "translation",
+    "translation_has_cyrillic",
+    "translation_has_non_ascii_latin",
+    "source_equals_translation",
+    "topic"
+  )],
+  30L
+)
+names(flagged_examples) <- c(
+  "Row",
+  "Source feedback",
+  "Supplied translation",
+  "Cyrillic",
+  "Accented Latin",
+  "Source-equal",
+  "Topic"
+)
+knitr::kable(flagged_examples, format = "html", escape = TRUE)
+```
+
+## Method
+
+```{r method-table}
+method_display <- method
+names(method_display) <- c("Item", "Value")
+method_display$Item <- gsub("_", " ", method_display$Item)
+knitr::kable(method_display, format = "html", escape = TRUE)
+```
+
+The accompanying workbook contains the complete 8,987-row assignment table, ranked terms, distinct representative translations, model-selection diagnostics, repeated-text audit, and method metadata.

@@ -1,0 +1,25 @@
+# Session artifacts (local-only, never committed)
+HANDOFF.md
+LEARNINGS.md
+CHANGES.md
+CLAUDE.md
+AGENTS.md
+AGENT-NOTE-*.md
+cran-comments.md
+README.html
+
+# Build and check artifacts
+*.tar.gz
+*.Rcheck/
+.Rproj.user
+Rplots.pdf
+
+# Local render/analysis outputs (recomputable)
+tmp/
+outputs/
+
+# Local reference material
+/*.pdf
+
+# OS noise
+.DS_Store

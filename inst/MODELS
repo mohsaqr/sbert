@@ -1,0 +1,95 @@
+Pinned models (verify with sbert_models(); all use attention-mask-aware mean
+pooling and optional L2 normalization, enabled by default)
+
+Model: sentence-transformers/all-MiniLM-L6-v2
+Revision: 1110a243fdf4706b3f48f1d95db1a4f5529b4d41
+License: Apache-2.0
+Languages: English
+Maximum sequence length: 256 word pieces
+Embedding dimensions: 384
+Artifact: onnx/model.onnx | 90405214 bytes | SHA-256 6fd5d72fe4589f189f8ebc006442dbb529bb7ce38f8082112682524616046452
+Artifact: tokenizer.json | 466247 bytes | SHA-256 be50c3628f2bf5bb5e3a7f17b1f74611b2561a3a27eeab05e5aa30f411572037
+
+Model: sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2
+Revision: e8f8c211226b894fcb81acc59f3b34ba3efd5f42
+License: Apache-2.0
+Languages: 50+ languages
+Maximum sequence length: 128 word pieces
+Embedding dimensions: 384
+Artifact: onnx/model.onnx | 470301610 bytes | SHA-256 10f7a088420252b26caf819236ca2c9d2987afd0fc06fec7553b542a5655a05a
+Artifact: tokenizer.json | 9081518 bytes | SHA-256 2c3387be76557bd40970cec13153b3bbf80407865484b209e655e5e4729076b8
+
+Model: sentence-transformers/all-mpnet-base-v2
+Revision: e8c3b32edf5434bc2275fc9bab85f82640a19130
+License: Apache-2.0
+Languages: English
+Maximum sequence length: 384 word pieces
+Embedding dimensions: 768
+Artifact: onnx/model.onnx | 435826548 bytes | SHA-256 74187b16d9c946fea252e120cfd7a12c5779d8b8b86838a2e4c56573c47941bd
+Artifact: tokenizer.json | 466021 bytes | SHA-256 b8be2c30ba5dd723a6d5ee26d013da103d5408d92ddcb23747622f9e48f1d842
+
+Model: sentence-transformers/paraphrase-multilingual-mpnet-base-v2
+Revision: 4328cf26390c98c5e3c738b4460a05b95f4911f5
+License: Apache-2.0
+Languages: 50+ languages
+Maximum sequence length: 128 word pieces
+Embedding dimensions: 768
+Artifact: onnx/model.onnx | 1110068629 bytes | SHA-256 253e00bb467fcdcac714a7b2443330c28ffbecb6d1f791c92caaf2af468bfbaa
+Artifact: tokenizer.json | 9081518 bytes | SHA-256 2c3387be76557bd40970cec13153b3bbf80407865484b209e655e5e4729076b8
+
+Model: sentence-transformers/all-MiniLM-L12-v2
+Revision: a50ef00143b4d5391434df20ae11632588ac25be
+License: Apache-2.0
+Languages: English
+Maximum sequence length: 128 word pieces
+Embedding dimensions: 384
+Artifact: onnx/model.onnx | 133126567 bytes | SHA-256 84c56795d395593cbee215e2d635a8f0ad3199ae99f99299c44cf1eaecff3ad4
+Artifact: tokenizer.json | 466247 bytes | SHA-256 be50c3628f2bf5bb5e3a7f17b1f74611b2561a3a27eeab05e5aa30f411572037
+
+Model: sentence-transformers/paraphrase-MiniLM-L3-v2
+Revision: 4ca70771034acceecb2e72475f72050fcdde4ddc
+License: Apache-2.0
+Languages: English
+Maximum sequence length: 128 word pieces
+Embedding dimensions: 384
+Artifact: onnx/model.onnx | 69044978 bytes | SHA-256 84007b609c7a626b0adf825b1e36b839e705cd5995b4865b6e6696541d0a6350
+Artifact: tokenizer.json | 466248 bytes | SHA-256 a9576e4dadfe7f78f071a1c00ba6902cc83ec6ed7e9b590ee974950bd4d54393
+
+Model: sentence-transformers/multi-qa-MiniLM-L6-cos-v1
+Revision: b207367332321f8e44f96e224ef15bc607f4dbf0
+License: Apache-2.0
+Languages: English
+Maximum sequence length: 512 word pieces
+Embedding dimensions: 384
+Artifact: onnx/model.onnx | 90405214 bytes | SHA-256 826501e8460f6e1a83fa30a9b173f051100abda5559e1352efc0e3fe3136afc2
+Artifact: tokenizer.json | 466247 bytes | SHA-256 7fa9272f7ef1ebd1666bb3bfd9d4707660ff0076ca9d1671cd9a9c6e18e03331
+
+Model: BAAI/bge-small-en-v1.5 | Revision: 5c38ec7c405ec4b44b94cc5a9bb96e735b38267a | MIT
+English | 512 word pieces | 384 dimensions | CLS pooling
+Artifact: onnx/model.onnx | 133093490 bytes | SHA-256 828e1496d7fabb79cfa4dcd84fa38625c0d3d21da474a00f08db0f559940cf35
+Artifact: tokenizer.json | 711396 bytes | SHA-256 d241a60d5e8f04cc1b2b3e9ef7a4921b27bf526d9f6050ab90f9267a1f9e5c66
+
+Model: BAAI/bge-base-en-v1.5 | Revision: a5beb1e3e68b9ab74eb54cfd186867f64f240e1a | MIT
+English | 512 word pieces | 768 dimensions | CLS pooling
+Artifact: onnx/model.onnx | 435811539 bytes | SHA-256 9bc579acdba21c253c62a9bf866891355a63ffa3442b52c8a37d75b2ccb91848
+Artifact: tokenizer.json | 711396 bytes | SHA-256 d241a60d5e8f04cc1b2b3e9ef7a4921b27bf526d9f6050ab90f9267a1f9e5c66
+
+Model: intfloat/multilingual-e5-small | Revision: 614241f622f53c4eeff9890bdc4f31cfecc418b3 | MIT
+100+ languages | 512 word pieces | 384 dimensions | mean pooling | prefix "query: "
+Artifact: onnx/model.onnx | 470268510 bytes | SHA-256 ca456c06b3a9505ddfd9131408916dd79290368331e7d76bb621f1cba6bc8665
+Artifact: tokenizer.json | 17082730 bytes | SHA-256 0b44a9d7b51c3c62626640cda0e2c2f70fdacdc25bbbd68038369d14ebdf4c39
+
+Model: nomic-ai/nomic-embed-text-v1.5 | Revision: e9b6763023c676ca8431644204f50c2b100d9aab | Apache-2.0
+English | 8192 word pieces | 768 dimensions | mean pooling | prefix "search_document: "
+Artifact: onnx/model.onnx | 547310275 bytes | SHA-256 147d5aa88c2101237358e17796cf3a227cead1ec304ec34b465bb08e9d952965
+Artifact: tokenizer.json | 711396 bytes | SHA-256 d241a60d5e8f04cc1b2b3e9ef7a4921b27bf526d9f6050ab90f9267a1f9e5c66
+
+Model: jinaai/jina-embeddings-v2-small-en | Revision: 44e7d1d6caec8c883c2d4b207588504d519788d0 | Apache-2.0
+English | 8192 word pieces | 512 dimensions | mean pooling
+Artifact: model.onnx | 129809014 bytes | SHA-256 974fdefe71fc9889258f569132b35acae6278874c8d09dbdf7806d23ad0b4497
+Artifact: tokenizer.json | 711573 bytes | SHA-256 e9f999ac74497843ed9f4303246a8f43d9f100ee8aab8e133667903f447ceb48
+
+Model: mixedbread-ai/mxbai-embed-large-v1 | Revision: b33106f585b9ce46904ad7443a3b52b7a63e231c | Apache-2.0
+English | 512 word pieces | 1024 dimensions | CLS pooling
+Artifact: onnx/model.onnx | 1336854282 bytes | SHA-256 adb53ed475faa339bfad3bd2bdb7e6a30b4f47280ade9811f81bef7953f9ab77
+Artifact: tokenizer.json | 711396 bytes | SHA-256 d241a60d5e8f04cc1b2b3e9ef7a4921b27bf526d9f6050ab90f9267a1f9e5c66

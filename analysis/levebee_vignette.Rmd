@@ -1,0 +1,291 @@
+---
+title: "Semantic Topics in Levebee AI Mathematics Feedback — an sbert Tutorial"
+author: "sbert 0.4.0"
+date: "`r format(Sys.Date())`"
+output:
+  html_document:
+    toc: true
+    toc_depth: 2
+    theme: cosmo
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE, message = FALSE, warning = FALSE,
+  fig.width = 7, fig.height = 4.2, dpi = 150, out.width = "100%"
+)
+suppressMessages(devtools::load_all("..", quiet = TRUE))
+fig_dir <- file.path("..", "tmp", "levebee_vignette_figs")
+dir.create(fig_dir, recursive = TRUE, showWarnings = FALSE)
+```
+
+# Why this tutorial
+
+The `feedback_translations` dataset bundled with **sbert** contains 8,987
+AI-generated feedback messages from the Levebee mathematics application,
+translated into English from ten source languages. Nobody can read nine
+thousand messages, and the messages repeat heavily — "Very good!" alone
+appears dozens of times — so simple frequency lists tell you about templates,
+not content. Topic modeling answers the question the raw data cannot: *what
+kinds of feedback does the system actually give, and in what proportions?*
+
+The answer has to survive scrutiny, so every step here is deterministic:
+rerunning this document reproduces every number, bar, and sentence exactly.
+The tutorial builds one six-topic model and then inspects it from three
+deliberately different angles:
+
+1. **Model quality** — coherence and diversity, so you know which topics to
+   trust before interpreting any of them.
+2. **Two keyword views per topic** — raw within-topic counts (what the topic
+   *says most*) against class-based TF-IDF (what the topic *alone* says).
+   These are different lists by construction, and the disagreement between
+   them is itself informative.
+3. **Representative sentences** — the centroid-nearest messages, which are
+   the auditable evidence that a topic label means what it claims.
+
+| Component | Verb | Question it answers |
+|---|---|---|
+| Topic model | `sbert_topics()` | What groups exist, and how big are they? |
+| Evaluation | `sbert_coherence()`, `sbert_diversity()` | Which topics are trustworthy? |
+| Frequent keywords | `sbert_beta()` | What does each topic talk about most? |
+| Distinctive keywords | `topic_model$terms` | What does each topic talk about that others do not? |
+| Evidence | `topic_model$representatives` | Do real messages support the label? |
+
+```{r library, eval=FALSE}
+library(sbert)
+```
+
+Thirteen revision-pinned models are available; this tutorial uses the
+default, `all-MiniLM-L6-v2` (the field's standard quality-per-megabyte
+English embedder). The menu, with each model's dimension, input limit,
+language coverage, and download size:
+
+```{r menu}
+sbert_models()
+```
+
+# The corpus, deduplicated
+
+Embedding the same string twice wastes computation and — more importantly —
+lets high-frequency templates dominate the clustering geometry: one hundred
+copies of "Very good!" act as a single point with one hundred times the
+pull on a centroid. `sbert_dedupe()` therefore collapses the corpus to its
+distinct non-blank messages (each kind votes once) while keeping the row
+frequencies, which return as weights when sizes are reported.
+
+```{r data}
+corpus <- sbert_dedupe(feedback_translations$translation)
+nrow(corpus)
+```
+
+Three explicit steps turn the corpus into numbers, and each exists for a
+reason. Called without arguments, every model function uses the package
+default, `all-MiniLM-L6-v2` — a 6-layer distilled English model that is the
+field's standard quality-per-megabyte starter (`sbert_models()` lists the
+other twelve pinned options). `sbert_model_download()` is the only step that
+touches the network: it fetches the model's ONNX graph (90.4 MB) and
+tokenizer into the local cache, locked to one immutable Hugging Face
+revision and refused
+unless every byte matches the SHA-256 hashes pinned inside the package — so
+the model you run today is provably the model you run next year. Once the
+files are installed the call is a no-op. `sbert_load_model()` then builds
+the in-memory model from those verified files: the Rust tokenizer, the ONNX
+inference session, and the model's own settings (384 dimensions, 256-token
+limit, mean pooling).
+
+`sbert_encode()` does the actual work: each message is tokenized into word
+pieces, run through the network (one vector per token), mean-pooled into one
+vector per message with padding masked out, and L2-normalized. The
+normalization is what makes everything downstream cheap — on unit vectors,
+cosine similarity is a plain dot product, which is exactly what the k-means
+clustering and the centroid distances in the panels below rely on. The
+result is an 8,144 × 384 matrix, numerically identical to Python
+`SentenceTransformers` output and bit-identical on every rerun — which is
+why this tutorial recomputes it (about ten seconds) instead of shipping a
+cache file.
+
+```{r embeddings}
+sbert_model_download()
+minilm <- sbert_load_model()
+embeddings <- sbert_encode(corpus$text, model = minilm)
+```
+
+# The six-topic model
+
+Six topics is a reviewed choice for this corpus, not an algorithmic guess —
+**sbert** deliberately refuses to pick `n_topics` for you, because the right
+granularity depends on what the analysis is *for* (here: an editorial review
+of feedback types, where six kinds are actionable and sixty are not).
+
+```{r model}
+topic_model <- sbert_topics(
+  corpus$text,
+  n_topics = 6,
+  embeddings = embeddings,
+  n_terms = 8,
+  n_representatives = 5
+)
+topic_model
+```
+
+## Should you trust these topics?
+
+Interpretation comes *after* evaluation, because a beautifully labeled topic
+with poor coherence is a story about noise. NPMI coherence asks whether a
+topic's top terms actually co-occur in its messages (+1 = always together,
+−1 = never); diversity asks whether topics share their vocabulary or own it.
+
+```{r evaluate}
+summary(topic_model)
+```
+
+```{r coherence}
+sbert_coherence(topic_model, measure = "npmi")
+```
+
+Carry these numbers into the per-topic panels below: the topics with the
+highest NPMI are the rigid instructional templates (regular phrasing is
+exactly what co-occurrence statistics reward), and any topic with visibly
+lower coherence should be read through its representative sentences rather
+than its keywords.
+
+## Size on two scales
+
+The model counts *distinct* messages, but the application sent some messages
+hundreds of times, so editorial priority follows the weighted share, not the
+distinct share. `sbert_topic_sizes()` reports both scales in one call; the
+gap between `proportion` and `weighted_share` measures how template-driven
+each topic is — a topic whose weighted share far exceeds its distinct share
+is a small repertoire of heavily reused messages.
+
+```{r sizes}
+plot(topic_model, type = "sizes")
+```
+
+```{r weighted}
+sbert_topic_sizes(topic_model, weights = corpus$n)
+```
+
+# Two keyword views, one topic
+
+`sbert_beta()` returns the empirical probability of each word given the topic
+— the *generative* view, dominated by whatever the topic says most often.
+The class-based TF-IDF scores in `topic_model$terms` are the *discriminative*
+view: they promote words this topic uses and others do not, and demote the
+corpus-wide vocabulary ("picture", "choose") that every feedback message
+shares. Neither list is "the" keywords; a topic is characterized by the pair.
+When the two lists agree, the topic has a vocabulary of its own; when they
+disagree, the counts list is telling you about the corpus and only the
+TF-IDF list about the topic.
+
+```{r beta}
+beta <- sbert_beta(topic_model)
+head(subset(beta, topic == 1), 8)
+```
+
+```{r terms}
+head(subset(topic_model$terms, topic == 1), 8)
+```
+
+# The topics, panel by panel
+
+Each panel pairs the two keyword bars with the five centroid-nearest
+messages (cosine distance in parentheses — smaller is closer to the topic's
+center). The sentences are the ground truth here: the bars summarize, the
+sentences verify.
+
+```{r panel-helper, include=FALSE}
+palette_colors <- sbert_palette(nrow(topic_model$topics))
+
+draw_topic_panel <- function(model, beta, topic_id, color, path) {
+  count_rows <- head(subset(beta, topic == topic_id), 8)
+  score_rows <- head(subset(model$terms, topic == topic_id), 8)
+  png(path, width = 2100, height = 1100, res = 300)
+  op <- par(
+    mfrow = c(1, 2), mar = c(2.6, 7.2, 2.2, 1.2),
+    mgp = c(1.5, 0.35, 0), tcl = -0.2, family = "sans"
+  )
+  on.exit({par(op); dev.off()}, add = TRUE)
+  draw_bar_column(
+    values = rev(count_rows$count),
+    labels = rev(count_rows$term),
+    title = "Within-topic count",
+    color = color,
+    value_format = "%d"
+  )
+  draw_bar_column(
+    values = rev(score_rows$score),
+    labels = rev(score_rows$term),
+    title = "Class-based TF-IDF",
+    color = grDevices::adjustcolor(color, alpha.f = 0.55),
+    value_format = "%.3f"
+  )
+  invisible(path)
+}
+
+draw_bar_column <- function(values, labels, title, color, value_format) {
+  positions <- barplot(
+    values,
+    names.arg = labels,
+    horiz = TRUE,
+    las = 1,
+    border = NA,
+    col = color,
+    xlim = c(0, max(values) * 1.22),
+    cex.names = 0.72,
+    cex.axis = 0.6,
+    axes = FALSE
+  )
+  text(
+    x = values,
+    y = positions,
+    labels = sprintf(value_format, values),
+    pos = 4,
+    cex = 0.6,
+    col = "grey30"
+  )
+  title(main = title, adj = 0, cex.main = 0.85, font.main = 2, line = 0.6)
+}
+```
+
+```{r panels, echo=FALSE, results="asis"}
+invisible(lapply(
+  seq_len(nrow(topic_model$topics)),
+  function(topic_id) {
+    topic_row <- subset(topic_model$topics, topic == topic_id)
+    cat(sprintf(
+      "## Topic %d — %s\n\n%d distinct messages (%.1f%% of the corpus)\n\n",
+      topic_id,
+      topic_row$label,
+      topic_row$n_documents,
+      100 * topic_row$proportion
+    ))
+    figure_path <- file.path(fig_dir, sprintf("topic_%02d.png", topic_id))
+    draw_topic_panel(topic_model, beta, topic_id, palette_colors[[topic_id]], figure_path)
+    cat(sprintf("<img src=\"%s\" width=\"100%%\"/>\n\n", knitr::image_uri(figure_path)))
+    representatives <- subset(topic_model$representatives, topic == topic_id)
+    cat("**Representative messages**\n\n")
+    cat(sprintf(
+      "> %s *(%.3f)*\n\n",
+      representatives$text,
+      representatives$distance
+    ), sep = "")
+  }
+))
+```
+
+# Where to go from here
+
+The model built here is reusable, not just describable. `predict()` assigns
+any new feedback message to these six topics without refitting;
+`sbert_membership()` replaces the hard assignment with graded probabilities
+when a message sits between topics; and `sbert_gamma()` combined with
+`sbert_segment()` shows when a single multi-sentence message spans several
+feedback types. For multilingual work on the *source* messages (the
+`feedback` column spans ten languages), change one argument —
+`sbert_encode(corpus$text, model = "paraphrase-multilingual-MiniLM-L12-v2")`
+— and the rest of this document runs unchanged.
+
+```{r session, echo=FALSE}
+sessionInfo()$R.version$version.string
+```

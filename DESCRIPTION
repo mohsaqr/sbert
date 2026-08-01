@@ -1,0 +1,46 @@
+Package: sbert
+Type: Package
+Title: Sentence Embeddings with 'Sentence-BERT' Models
+Version: 0.4.0
+Authors@R: person(
+    given = "Mohammed",
+    family = "Saqr",
+    role = c("aut", "cre", "cph"),
+    email = "mohammed.saqr@uef.fi",
+    comment = c(ORCID = "0000-0001-5881-3109")
+  )
+Description: Computes sentence embeddings in R without requiring
+    'Python' by running revision-pinned 'Sentence-BERT' models through
+    'ONNX Runtime'. Implements model-specific tokenization,
+    attention-mask-aware mean pooling, L2 normalization, cosine
+    similarity, deterministic semantic topic clustering, and class-based
+    term weighting following Reimers and Gurevych (2019)
+    <doi:10.18653/v1/D19-1410>. Topic models are evaluated with intrinsic
+    coherence (UMass and normalized pointwise mutual information) and
+    diversity metrics, and summarized with deterministic base-graphics
+    visualizations. Model files are downloaded only after an explicit user
+    request and are stored outside the package library.
+License: MIT + file LICENSE
+Encoding: UTF-8
+LazyData: true
+Depends:
+    R (>= 4.1.0)
+Imports:
+    digest,
+    grDevices,
+    graphics,
+    onnxr (>= 0.1.2),
+    tok (>= 0.2.3),
+    stats,
+    tools,
+    utils
+Suggests:
+    SnowballC,
+    jsonlite,
+    knitr,
+    rmarkdown,
+    testthat (>= 3.0.0)
+SystemRequirements: ONNX Runtime (>= 1.25.1)
+VignetteBuilder: knitr
+Config/testthat/edition: 3
+RoxygenNote: 7.3.3

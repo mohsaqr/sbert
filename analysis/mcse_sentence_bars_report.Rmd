@@ -1,0 +1,41 @@
+---
+title: "Sentence-Level CSE Topics — Words, c-TF-IDF, and Sentences"
+subtitle: "Per-topic breakdown over 94,049 abstract sentences"
+date: "`r format(Sys.Date())`"
+output:
+  html_document:
+    theme: flatly
+    toc: true
+    toc_float: true
+    self_contained: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
+report_data <- readRDS("../outputs/mcse_sentence_topics/bars_report_data.rds")
+fig_uri <- function(kind, t) {
+  knitr::image_uri(file.path("..", "tmp", "mcse_sentence_bars",
+                             sprintf("%s_%02d.png", kind, t)))
+}
+```
+
+Each sentence-level topic is described three ways, exactly as in the earlier
+reviews. The **actual word count** (left bar) is the frequency view — what STM
+calls the highest-probability words (β). The **c-TF-IDF** (right bar) is the
+*distinctive* view (FREX analogue) — words common *within* the topic and rare
+*across* topics. The **representative sentences** are the abstract sentences
+nearest the cluster centre. Topics are ordered by size.
+
+```{r cards, results='asis'}
+for (topic in report_data) {
+  cat(sprintf("\n## %s\n\n", topic$label))
+  cat(sprintf("*%s sentences &middot; %.1f%% &middot; NPMI %.2f*\n\n",
+              format(topic$n, big.mark = ","), 100 * topic$proportion, topic$npmi))
+  cat(sprintf('<img src="%s" style="width:49%%;display:inline-block"> ',
+              fig_uri("raw", topic$topic)))
+  cat(sprintf('<img src="%s" style="width:49%%;display:inline-block">\n\n',
+              fig_uri("tfidf", topic$topic)))
+  cat("**Representative sentences**\n\n")
+  cat(paste(sprintf("- %s", topic$reps), collapse = "\n"), "\n\n")
+}
+```

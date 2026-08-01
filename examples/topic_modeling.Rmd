@@ -1,0 +1,140 @@
+---
+title: "Python-Free Sentence-BERT Topic Modeling in R"
+output:
+  html_document:
+    self_contained: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, collapse = TRUE, comment = "#>")
+if (!"package:sbert" %in% search()) {
+  pkgload::load_all(quiet = TRUE)
+}
+
+model_source <- Sys.getenv("SBERT_TEST_MODEL_DIR", unset = "")
+if (!nzchar(model_source)) {
+  stop(paste0(
+    "Set SBERT_TEST_MODEL_DIR to a directory containing model.onnx and ",
+    "tokenizer.json before rendering."
+  ))
+}
+cache_dir <- tempfile("sbert-topic-html-cache-")
+model_directory <- sbert:::sbert_model_directory(cache_dir)
+dir.create(model_directory, recursive = TRUE)
+copied <- file.copy(
+  file.path(model_source, c("model.onnx", "tokenizer.json")),
+  model_directory
+)
+stopifnot(all(copied))
+```
+
+This example performs document-level topic discovery with genuine
+`all-MiniLM-L6-v2` embeddings. The complete R pipeline is Python-free:
+
+1. Hugging Face-compatible tokenization with `tok`.
+2. Native ONNX inference with `onnxr`.
+3. Deterministic semantic clustering.
+4. Representative-document and class TF-IDF topic summaries.
+
+## Synthetic corpus
+
+The expected labels below are used only to evaluate the discovered partition;
+they are never passed to the topic model.
+
+```{r corpus}
+topic_data <- data.frame(
+  expected_topic = rep(c("astronomy", "cooking", "finance"), each = 5L),
+  text = c(
+    "A telescope captured a distant galaxy filled with newborn stars.",
+    "Astronomers measured the orbit of a planet around a nearby star.",
+    "A spacecraft photographed craters across the surface of the moon.",
+    "The observatory detected light from a supernova in deep space.",
+    "A satellite mapped clouds of dust throughout the Milky Way galaxy.",
+    "The chef sauteed garlic and onions in olive oil before adding tomatoes.",
+    "Bread dough rises with yeast before it is baked in the oven.",
+    "The recipe says to whisk eggs and sugar into the cake batter.",
+    "Vegetables and spices simmered in broth to make a hearty soup.",
+    "The cook grilled salmon seasoned with fresh lemon and herbs.",
+    "The central bank raised interest rates to slow inflation.",
+    "Investors bought government bonds when the stock market declined.",
+    "Strong quarterly earnings sent the company share price higher.",
+    "The borrower compared mortgage loans and their monthly payments.",
+    "The portfolio spreads risk among equities, bonds, and cash."
+  ),
+  stringsAsFactors = FALSE
+)
+
+str(topic_data)
+table(topic_data$expected_topic)
+anyNA(topic_data)
+anyDuplicated(topic_data$text)
+```
+
+## Fit the topic model
+
+```{r fit}
+model <- sbert_load_model(cache_dir, backend = "cpu", threads = 1L)
+
+topic_model <- sbert_topics(
+  text = topic_data$text,
+  n_topics = 3L,
+  model = model,
+  batch_size = 8L,
+  n_terms = 6L,
+  n_representatives = 2L,
+  keep_embeddings = TRUE
+)
+
+topic_model
+str(topic_model, max.level = 1L)
+dim(topic_model$embeddings)
+summary(as.numeric(topic_model$embeddings))
+rowSums(topic_model$embeddings^2)
+```
+
+## Topic summaries
+
+```{r summaries}
+topic_model$topics
+topic_model$terms
+topic_model$representatives[, c("topic", "rank", "text", "distance")]
+```
+
+Topic numbers are arbitrary cluster identifiers. Interpretation should use the
+terms and representative documents rather than assuming that topic 1 has a
+predefined meaning.
+
+## Label-invariant evaluation
+
+```{r evaluation}
+assignment_table <- table(
+  expected = topic_data$expected_topic,
+  discovered = topic_model$documents$topic
+)
+assignment_table
+
+true_same_topic <- outer(
+  topic_data$expected_topic,
+  topic_data$expected_topic,
+  `==`
+)
+discovered_same_topic <- outer(
+  topic_model$documents$topic,
+  topic_model$documents$topic,
+  `==`
+)
+upper_triangle <- upper.tri(true_same_topic)
+rand_agreement <- mean(
+  true_same_topic[upper_triangle] ==
+    discovered_same_topic[upper_triangle]
+)
+
+data.frame(
+  metric = c("Pairwise Rand agreement", "Number of discovered topics"),
+  value = c(rand_agreement, length(unique(topic_model$documents$topic)))
+)
+```
+
+This corpus has perfect label-invariant agreement (`1.0`): every document from
+the same expected domain was placed together, and all three domains remained
+separate.

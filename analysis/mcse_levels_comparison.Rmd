@@ -1,0 +1,159 @@
+---
+title: "Sentence, Clause, or Phrase? Segmentation Levels Compared on MCSE"
+author: "sbert 0.4.0"
+date: "`r format(Sys.Date())`"
+output:
+  html_document:
+    toc: true
+    toc_depth: 1
+    theme: cosmo
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+suppressMessages(devtools::load_all("..", quiet = TRUE))
+mcse_path <- file.path(
+  "/Users/mohammedsaqr/Library/CloudStorage/GoogleDrive-saqr@saqr.me",
+  "Other computers/My MacBook Pro (1)/AKA/Networks_CSE/MCSE_gold.RDS"
+)
+```
+
+# Why compare levels
+
+The clause-level MCSE vignette settled on one segmentation; this companion
+shows what the *other* two levels would have put in its place. Everything
+else is held fixed — the same corpus, the same `multi-qa-MiniLM-L6-cos-v1`
+embeddings, the same deterministic thirty-topic model, the same
+margin-ranked selection — so any difference you see between the three
+statement sets is caused by the `level` argument alone.
+
+The trade-off each level makes:
+
+- **Sentence** splits only at `.`, `?`, `!`. Units are complete thoughts,
+  but a compound academic sentence stays whole, so evidence runs longer and
+  a single unit can straddle two ideas.
+- **Clause** (the default) additionally splits at `;`, `:`, spaced dashes,
+  and subordinating hinges ("which", "while", "in terms of"). Structured
+  headers stand apart and stacked claims come apart, while comma
+  enumerations stay intact.
+- **Phrase** additionally splits at commas. Units are shortest and most
+  pointed, but enumerations shatter and a unit can lose the verb that made
+  it a claim.
+
+# One pipeline, three levels
+
+```{r data}
+mcse <- readRDS(mcse_path)
+usable <- subset(mcse, !is.na(AB) & !startsWith(trimws(AB), "[NO ABSTRACT"))
+corpus <- sbert_dedupe(paste(trimws(usable$TI), trimws(usable$AB), sep = " — "))
+```
+
+```{r model}
+qa_minilm <- sbert_load_model("multi-qa-MiniLM-L6-cos-v1", threads = 8L)
+embeddings <- sbert_encode(corpus$text, model = qa_minilm)
+topic_model <- sbert_topics(
+  corpus$text,
+  n_topics = 30,
+  embeddings = embeddings,
+  n_terms = 8,
+  n_representatives = 3
+)
+```
+
+Segmentation is the only line that changes:
+
+```{r segment}
+abstracts <- unique(trimws(usable$AB))
+sentence_units <- sbert_segment(abstracts, level = "sentence", merge_below = 5)
+clause_units <- sbert_segment(abstracts, level = "clause", merge_below = 5)
+phrase_units <- sbert_segment(abstracts, level = "phrase", merge_below = 5)
+```
+
+```{r encode}
+sentence_embeddings <- sbert_encode(sentence_units$text, model = qa_minilm)
+clause_embeddings <- sbert_encode(clause_units$text, model = qa_minilm)
+phrase_embeddings <- sbert_encode(phrase_units$text, model = qa_minilm)
+```
+
+```{r representatives}
+evidence_sentence <- sbert_representatives(
+  topic_model, sentence_units$text, embeddings = sentence_embeddings
+)
+evidence_clause <- sbert_representatives(
+  topic_model, clause_units$text, embeddings = clause_embeddings
+)
+evidence_phrase <- sbert_representatives(
+  topic_model, phrase_units$text, embeddings = phrase_embeddings
+)
+```
+
+# What each level produces
+
+Finer levels multiply the candidate pool and shrink the units — the
+statistics below quantify the trade before you read a single statement.
+`units` counts the candidate pool each level offers, `median_chars` the
+typical unit length, and `median_statement_chars` the typical length of the
+evidence actually selected across the thirty topics.
+
+```{r overview}
+data.frame(
+  level = c("sentence", "clause", "phrase"),
+  units = c(nrow(sentence_units), nrow(clause_units), nrow(phrase_units)),
+  median_chars = c(
+    median(nchar(sentence_units$text)),
+    median(nchar(clause_units$text)),
+    median(nchar(phrase_units$text))
+  ),
+  median_statement_chars = c(
+    median(nchar(evidence_sentence$text)),
+    median(nchar(evidence_clause$text)),
+    median(nchar(evidence_phrase$text))
+  )
+)
+```
+
+# The statements, topic by topic
+
+For every topic the three blocks below hold the three highest-margin
+statements at each level, verbatim, with the distance to the topic centroid
+in parentheses. Read them as answers to the same question — "show me the
+unit that is unambiguously about this topic" — asked of three differently
+cut candidate pools.
+
+```{r panels, echo=FALSE, results="asis"}
+show_level <- function(evidence, topic_id, level_name) {
+  statements <- subset(evidence, topic == topic_id)
+  cat(sprintf("**%s**\n\n", level_name))
+  cat(sprintf(
+    "> %s *(%.3f)*\n\n",
+    statements$text,
+    statements$distance
+  ), sep = "")
+}
+invisible(lapply(
+  seq_len(nrow(topic_model$topics)),
+  function(topic_id) {
+    topic_row <- subset(topic_model$topics, topic == topic_id)
+    cat(sprintf("# Topic %d — %s\n\n", topic_id, topic_row$label))
+    show_level(evidence_sentence, topic_id, "Sentence level")
+    show_level(evidence_clause, topic_id, "Clause level")
+    show_level(evidence_phrase, topic_id, "Phrase level")
+  }
+))
+```
+
+# Reading the comparison
+
+Three things to look for. First, where sentence and clause agree, the
+sentence had no internal structure to cut — the clause segmenter passed it
+through whole, and the levels are interchangeable for that topic. Second,
+where they disagree, the clause statement is usually the *core claim* of a
+longer sentence whose margin improved once the subordinate material was
+cut away. Third, phrase-level statements are the shortest but the most
+fragile: a fragment can score a wide margin on vocabulary alone while no
+longer being a claim anyone could check. That failure mode is why clause
+is the default.
+
+```{r session, echo=FALSE}
+sessionInfo()$R.version$version.string
+```

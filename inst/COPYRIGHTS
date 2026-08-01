@@ -1,0 +1,14 @@
+The sbert package source code is Copyright (c) 2026 Mohammed Saqr and is
+distributed under the MIT License.
+
+The supported sentence-transformers/all-MiniLM-L6-v2 model and tokenizer are
+published by the Sentence Transformers project under the Apache License 2.0.
+The package does not bundle those artifacts. It downloads them only after an
+explicit user call, from the immutable revision
+1110a243fdf4706b3f48f1d95db1a4f5529b4d41 at:
+https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2
+
+ONNX Runtime is Copyright (c) Microsoft Corporation and distributed under the
+MIT License. The package neither bundles nor installs it automatically. Runtime
+installation is delegated to the CRAN package onnxr after an explicit user call.
+

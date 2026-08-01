@@ -1,0 +1,141 @@
+---
+title: "A Sentence-Level Topic Model of Computing Education Research"
+subtitle: "Sentence-BERT + deterministic k-means over 94,049 abstract sentences"
+date: "`r format(Sys.Date())`"
+output:
+  html_document:
+    theme: flatly
+    toc: true
+    toc_float: true
+    df_print: kable
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = FALSE, message = FALSE, warning = FALSE,
+  fig.width = 8, fig.height = 5.2, dpi = 120, out.width = "100%"
+)
+devtools::load_all(quiet = TRUE)
+model <- readRDS("../outputs/mcse_sentence_topics/sentence_topic_model.rds")
+summary_table <- read.csv("../outputs/mcse_sentence_topics/sentence_topic_summary.csv",
+                          stringsAsFactors = FALSE)
+gamma_matrix <- readRDS("../outputs/mcse_sentence_topics/gamma_matrix.rds")
+labels <- model$topics$label
+n_sentences <- nrow(model$documents)
+n_docs <- nrow(gamma_matrix)
+```
+
+## Why a sentence-level model
+
+The document-level topic model gives each abstract **one** topic — but a CER
+abstract typically states a problem, describes a method, reports an evaluation,
+and notes limitations, each of which belongs to a different theme. Sentence-BERT
+is a *sentence* encoder, so the natural unit is the sentence. Here we cluster the
+**`r format(n_sentences, big.mark=",")` sentences** of the
+`r format(n_docs, big.mark=",")` abstracts directly. A sentence gets a topic; a
+document's topic profile (**γ**) is then the histogram of its sentences' topics —
+mixed membership that *emerges* from the data rather than being fitted.
+
+The search keywords (`computing`, `computer science`, `education`, `learn*`,
+`teach*`, …) and generic academic filler are removed from the topic vocabulary,
+so the terms describe what distinguishes each cluster.
+
+## Topic sizes
+
+```{r sizes, fig.height=6.2}
+plot(model, type = "sizes")
+```
+
+## Sentence map
+
+A classical-MDS projection of a deterministic 1,500-sentence sample, coloured by
+topic.
+
+```{r map, fig.height=6}
+plot(model, type = "map", max_points = 1500L)
+```
+
+## The topics
+
+`n_sentences` is the cluster size; **NPMI** is intrinsic coherence (higher =
+tighter co-occurrence); **c-TF-IDF** are the *distinctive* (FREX-style) terms and
+**β** are the *frequent* terms (p(word | topic)).
+
+```{r topic-table}
+tab <- summary_table[order(-summary_table$sentence_share),
+  c("label", "n_sentences", "npmi", "ctfidf_distinctive")]
+names(tab) <- c("Topic (c-TF-IDF label)", "Sentences", "NPMI", "Distinctive terms")
+knitr::kable(tab, row.names = FALSE)
+```
+
+### What only the sentence level reveals
+
+Two things the abstract-level model could not show:
+
+- **Rhetorical / structural sentence-types** that are never a whole paper's
+  subject but recur as sentences: `statistical / validity / measure` (methods),
+  `panel / session / audience` (conference structure),
+  `semester / lecture / material` (course logistics),
+  `lack / little / differences` (limitation-hedging).
+- **Boilerplate.** The highest-coherence topic is
+  `springer / switzerland / published` — the copyright template. This is an
+  honest caution: **NPMI rewards rigid co-occurrence, not meaning**, so a
+  boilerplate string scores as "most coherent."
+
+## Representative sentences
+
+For each topic, the abstract sentences nearest the cluster centre.
+
+```{r reps, results='asis'}
+reps <- model$representatives
+ordered_topics <- summary_table$topic[order(-summary_table$sentence_share)]
+invisible(lapply(utils::head(ordered_topics, 12L), function(k) {
+  cat(sprintf("\n**%s**\n\n", labels[k]))
+  sents <- utils::head(reps$text[reps$topic == k], 3L)
+  sents <- vapply(sents, function(s) {
+    s <- tolower(s); paste0(toupper(substr(s, 1, 1)), substr(s, 2, nchar(s)))
+  }, character(1L))
+  cat(paste(sprintf("- %s", sents), collapse = "\n"), "\n")
+}))
+```
+
+## Documents as topic mixtures (γ)
+
+```{r gamma-stats}
+n_topics_per_doc <- rowSums(gamma_matrix >= 0.25)
+multi <- mean(n_topics_per_doc >= 2L)
+entropy <- apply(gamma_matrix, 1L, function(p) {
+  p <- p[p > 0]; if (length(p) == 0) 0 else -sum(p * log(p)) / log(ncol(gamma_matrix))
+})
+```
+
+**`r sprintf("%.1f%%", 100*multi)`** of abstracts span at least two sentence-topics
+with ≥25% each — genuine, parameter-free mixed membership. The median document
+topic-entropy is **`r sprintf("%.2f", median(entropy))`** (0 = single topic,
+1 = uniform over all topics).
+
+```{r gamma-hist, fig.height=4}
+graphics::hist(n_topics_per_doc, breaks = seq(-0.5, max(n_topics_per_doc) + 0.5, 1),
+  col = "#3d9970", border = "white",
+  main = "Distinct topics per abstract (share >= 25%)",
+  xlab = "number of topics")
+```
+
+Example — an abstract's γ (top contributing sentence-topics):
+
+```{r gamma-example}
+i <- which.max(apply(gamma_matrix, 1L, function(p) sum(p >= 0.2)))
+prof <- sort(gamma_matrix[i, gamma_matrix[i, ] > 0], decreasing = TRUE)
+knitr::kable(data.frame(topic = names(prof), gamma = round(as.numeric(prof), 3)),
+             row.names = FALSE)
+```
+
+## Honest summary
+
+The sentence-level model is **richer** — it separates content from rhetoric,
+yields real document-topic mixtures, and its representative units are literally
+sentences — but **messier**: roughly a fifth of the 29 topics are structural or
+boilerplate (copyright, panels, logistics, hedging) rather than thematic, and two
+(`cs1/cs2/csp`, `lack/little/differences`) have negative coherence. The
+document-level k-means model remains the cleaner "what is this paper about" view;
+the sentence-level model is the complementary "what themes does it touch" view.

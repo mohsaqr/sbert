@@ -1,0 +1,320 @@
+---
+title: "Sentence Embeddings in R with Existing Packages"
+subtitle: "An offline, R-native fallback when Sentence-BERT cannot run"
+date: "2026-07-17"
+output:
+  html_document:
+    toc: true
+    self_contained: true
+---
+
+```{r setup}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  error = FALSE,
+  message = TRUE,
+  warning = TRUE
+)
+
+required_packages <- c(
+  "knitr",
+  "quanteda",
+  "reticulate",
+  "RSpectra"
+)
+
+package_available <- vapply(
+  required_packages,
+  requireNamespace,
+  logical(1),
+  quietly = TRUE
+)
+
+stopifnot(all(package_available))
+
+package_summary <- data.frame(
+  package = required_packages,
+  version = vapply(
+    required_packages,
+    function(package_name) {
+      as.character(utils::packageVersion(package_name))
+    },
+    character(1)
+  ),
+  stringsAsFactors = FALSE
+)
+
+knitr::kable(package_summary, caption = "Packages used by this report")
+```
+
+## What this example proves
+
+R can perform a complete sentence-embedding workflow locally: prepare text,
+produce one numeric vector per sentence, and calculate cosine similarity. The
+installed packages can do this with **Latent Semantic Analysis (LSA)**.
+
+This rendered run is **not Sentence-BERT**. Sentence-BERT requires a compatible
+transformer runtime, correct tokenizer, pretrained weights, pooling, and
+normalization. The active environment has `reticulate`, but not the Python
+`sentence_transformers` runtime.
+
+```{r backend-audit}
+sbert_available <- tryCatch(
+  reticulate::py_module_available("sentence_transformers"),
+  error = function(error_condition) {
+    warning(sprintf(
+      "Could not inspect the Python environment: %s",
+      conditionMessage(error_condition)
+    ))
+    FALSE
+  }
+)
+
+backend_summary <- data.frame(
+  component = c("R-to-Python interface", "Sentence-BERT runtime"),
+  available = c(TRUE, sbert_available),
+  implication = c(
+    "reticulate is installed",
+    if (sbert_available) {
+      "Actual Sentence-BERT inference can be configured"
+    } else {
+      "This report uses the local LSA fallback"
+    }
+  ),
+  stringsAsFactors = FALSE
+)
+
+knitr::kable(backend_summary, caption = "Runtime audit")
+```
+
+## Synthetic sentences
+
+The example contains two topics. Each topic has two sentences that use
+different vocabulary and a third sentence that bridges the vocabulary. This
+small construction lets LSA learn the intended latent grouping.
+
+```{r synthetic-data}
+sentence_data <- data.frame(
+  document_id = c(
+    "cat_1",
+    "cat_2",
+    "cat_bridge",
+    "car_1",
+    "car_2",
+    "car_bridge"
+  ),
+  topic = rep(c("animals", "vehicles"), each = 3L),
+  text = c(
+    "The cat sleeps on the sofa.",
+    "A kitten naps on the couch.",
+    "The cat and kitten sleep together on the sofa and couch.",
+    "The car needs a new engine.",
+    "The automobile requires motor repair.",
+    "The car and automobile have an engine and motor."
+  ),
+  stringsAsFactors = FALSE
+)
+
+str(sentence_data)
+head(sentence_data)
+summary(sentence_data)
+vapply(sentence_data, class, character(1))
+
+stopifnot(
+  nrow(sentence_data) > 1L,
+  !anyNA(sentence_data),
+  all(nzchar(sentence_data$document_id)),
+  all(nzchar(sentence_data$text)),
+  anyDuplicated(sentence_data$document_id) == 0L,
+  anyDuplicated(sentence_data$text) == 0L
+)
+
+knitr::kable(
+  sentence_data[, c("document_id", "topic", "text")],
+  caption = "Synthetic input data"
+)
+```
+
+## Create local LSA embeddings
+
+The pipeline tokenizes the sentences, removes English stop words, stems the
+remaining words, creates a TF--IDF matrix, and reduces it to two latent
+dimensions with truncated singular-value decomposition.
+
+```{r lsa-embeddings}
+text_corpus <- quanteda::corpus(
+  sentence_data,
+  text_field = "text",
+  docid_field = "document_id"
+)
+
+text_tokens <- quanteda::tokens(text_corpus, remove_punct = TRUE) |>
+  quanteda::tokens_tolower() |>
+  quanteda::tokens_remove(quanteda::stopwords("en")) |>
+  quanteda::tokens_wordstem(language = "english")
+
+token_counts <- quanteda::ntoken(text_tokens)
+stopifnot(!anyNA(token_counts), all(token_counts > 0L))
+
+text_dfm <- quanteda::dfm(text_tokens) |>
+  quanteda::dfm_tfidf(scheme_tf = "count", scheme_df = "inverse")
+
+text_matrix <- methods::as(text_dfm, "dgCMatrix")
+latent_dimensions <- 2L
+
+stopifnot(
+  identical(nrow(text_matrix), nrow(sentence_data)),
+  ncol(text_matrix) > latent_dimensions,
+  latent_dimensions < min(dim(text_matrix)),
+  !anyNA(text_matrix@x),
+  all(is.finite(text_matrix@x))
+)
+
+text_svd <- tryCatch(
+  RSpectra::svds(text_matrix, k = latent_dimensions),
+  error = function(error_condition) {
+    stop(sprintf(
+      "LSA decomposition failed: %s",
+      conditionMessage(error_condition)
+    ))
+  }
+)
+
+str(text_svd)
+names(text_svd)
+dim(text_svd$u)
+length(text_svd$d)
+dim(text_svd$v)
+
+embedding_matrix <- sweep(
+  text_svd$u,
+  MARGIN = 2L,
+  STATS = text_svd$d,
+  FUN = "*"
+)
+
+rownames(embedding_matrix) <- quanteda::docnames(text_dfm)
+colnames(embedding_matrix) <- sprintf(
+  "lsa_%02d",
+  seq_len(ncol(embedding_matrix))
+)
+
+embedding_row_norms <- sqrt(rowSums(embedding_matrix^2))
+
+stopifnot(
+  is.matrix(embedding_matrix),
+  identical(dim(embedding_matrix), c(nrow(sentence_data), latent_dimensions)),
+  !anyNA(embedding_matrix),
+  all(is.finite(embedding_matrix)),
+  all(embedding_row_norms > 0)
+)
+
+str(embedding_matrix)
+head(embedding_matrix)
+dim(embedding_matrix)
+summary(as.vector(embedding_matrix))
+
+knitr::kable(
+  round(embedding_matrix, 4),
+  caption = "Two-dimensional LSA sentence embeddings (not Sentence-BERT)"
+)
+```
+
+## Cosine similarity
+
+After row normalization, the matrix product gives every pairwise cosine
+similarity. Values near 1 indicate vectors pointing in similar directions;
+values near 0 indicate little shared direction.
+
+```{r cosine-similarity}
+normalized_embedding_matrix <- embedding_matrix / embedding_row_norms
+similarity_matrix <- tcrossprod(normalized_embedding_matrix)
+
+dimnames(similarity_matrix) <- list(
+  sentence_data$document_id,
+  sentence_data$document_id
+)
+
+same_topic_pairs <- outer(
+  sentence_data$topic,
+  sentence_data$topic,
+  FUN = "=="
+) & upper.tri(similarity_matrix)
+
+different_topic_pairs <- outer(
+  sentence_data$topic,
+  sentence_data$topic,
+  FUN = "!="
+) & upper.tri(similarity_matrix)
+
+within_topic_similarity <- mean(similarity_matrix[same_topic_pairs])
+between_topic_similarity <- mean(similarity_matrix[different_topic_pairs])
+
+stopifnot(
+  is.matrix(similarity_matrix),
+  identical(dim(similarity_matrix), c(nrow(sentence_data), nrow(sentence_data))),
+  !anyNA(similarity_matrix),
+  all(is.finite(similarity_matrix)),
+  isTRUE(all.equal(
+    similarity_matrix,
+    t(similarity_matrix),
+    tolerance = 1e-12
+  )),
+  isTRUE(all.equal(
+    unname(diag(similarity_matrix)),
+    rep(1, nrow(sentence_data)),
+    tolerance = 1e-12
+  )),
+  within_topic_similarity > between_topic_similarity
+)
+
+str(similarity_matrix)
+head(similarity_matrix)
+dim(similarity_matrix)
+summary(as.vector(similarity_matrix))
+
+knitr::kable(
+  round(similarity_matrix, 3),
+  caption = "Cosine similarity between LSA embeddings"
+)
+```
+
+```{r verification-summary}
+verification_summary <- data.frame(
+  check = c(
+    "Missing input values",
+    "Duplicate document IDs",
+    "TF--IDF dimensions",
+    "Embedding dimensions",
+    "Similarity dimensions",
+    "Mean within-topic similarity",
+    "Mean between-topic similarity"
+  ),
+  result = c(
+    as.character(anyNA(sentence_data)),
+    as.character(anyDuplicated(sentence_data$document_id)),
+    paste(dim(text_matrix), collapse = " x "),
+    paste(dim(embedding_matrix), collapse = " x "),
+    paste(dim(similarity_matrix), collapse = " x "),
+    sprintf("%.3f", within_topic_similarity),
+    sprintf("%.3f", between_topic_similarity)
+  ),
+  stringsAsFactors = FALSE
+)
+
+knitr::kable(verification_summary, caption = "Pipeline verification")
+```
+
+## Interpretation and limitation
+
+The same-topic sentences are closer than the different-topic sentences in this
+deliberately small example. This verifies the mechanics of an embedding and
+similarity workflow using only packages already installed.
+
+It does **not** establish equivalence with Sentence-BERT. LSA is fitted to the
+current corpus, largely ignores word order and context, and can connect words
+only through patterns present in that corpus. Sentence-BERT instead supplies
+pretrained, contextual sentence representations. Genuine Sentence-BERT output
+should replace `embedding_matrix` once a transformer runtime or authenticated
+embedding service is available; the cosine-similarity and verification steps
+can remain the same.

@@ -1,0 +1,287 @@
+---
+title: "Six-topic SBERT vs R text/BERTopic"
+subtitle: "Translated feedback: 8,976 modeled rows"
+output:
+  html_document:
+    self_contained: true
+    toc: true
+    toc_float: true
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = FALSE,
+  warning = FALSE,
+  message = FALSE,
+  fig.width = 10,
+  fig.height = 5,
+  dpi = 120
+)
+comparison_path <- file.path(
+  "outputs",
+  "feedback_translation_topics",
+  "text_package_comparison",
+  "text_topic_comparison.rds"
+)
+stopifnot(file.exists(comparison_path))
+comparison <- readRDS(comparison_path)
+assignments <- comparison$comparison_assignments
+quality <- comparison$quality_metrics
+agreement <- comparison$agreement_metrics
+topic_summaries <- comparison$topic_summaries
+reduced_info <- comparison$reduced_topic_info
+stopifnot(
+  nrow(assignments) == 8976L,
+  identical(sort(unique(assignments$sbert_topic)), 1:6),
+  identical(sort(unique(assignments$text_reduced_topic)), c(-1L, 0:5))
+)
+
+format_percent <- function(value, digits = 1L) {
+  stopifnot(is.numeric(value), length(value) >= 1L, is.numeric(digits))
+  sprintf(paste0("%.", digits, "f%%"), 100 * value)
+}
+
+format_metric <- function(value, digits = 3L) {
+  stopifnot(is.numeric(value), length(value) >= 1L, is.numeric(digits))
+  sprintf(paste0("%.", digits, "f"), value)
+}
+
+all_rows_agreement <- subset(
+  agreement,
+  subset == "all_rows" & method_a == "sbert_6" &
+    method_b == "text_reduced_6"
+)
+native_quality <- subset(quality, method == "text_native")
+reduced_quality <- subset(quality, method == "text_reduced_6")
+```
+
+<style>
+body { font-size: 16px; color: #1f2937; }
+.verdict { padding: 18px 22px; border-left: 6px solid #b91c1c; background: #fef2f2; margin: 18px 0 28px; }
+.cards { display: flex; flex-wrap: wrap; gap: 14px; margin: 18px 0 26px; }
+.card { flex: 1 1 180px; padding: 15px 18px; border: 1px solid #d1d5db; border-radius: 8px; background: #f8fafc; }
+.number { font-size: 28px; font-weight: 700; color: #0f4c5c; }
+.label { color: #475569; }
+.note { padding: 12px 16px; background: #fffbeb; border-left: 5px solid #d97706; }
+table { font-size: 14px; }
+</style>
+
+## Verdict
+
+<div class="verdict">
+<strong>Your concern is justified.</strong> Replacing deterministic six-cluster
+SBERT with <code>text::textTopics()</code> does not yield a clearer six-topic
+solution. Native <code>text</code>/BERTopic fragments this repetitive corpus into
+405 non-outlier topics and rejects 1,602 rows as outliers. Reducing that model to
+six substantive topics then puts 89.1% of its modeled rows into one catch-all
+topic. The two six-topic partitions have weak agreement (ARI 0.139).
+</div>
+
+```{r cards, results='asis'}
+cat(sprintf(
+  paste0(
+    '<div class="cards">',
+    '<div class="card"><div class="number">6</div><div class="label">SBERT forced topics</div></div>',
+    '<div class="card"><div class="number">%d</div><div class="label">native text topics</div></div>',
+    '<div class="card"><div class="number">%s</div><div class="label">native text outliers</div></div>',
+    '<div class="card"><div class="number">%s</div><div class="label">largest reduced-text topic</div></div>',
+    '</div>'
+  ),
+  native_quality$topic_count,
+  format_percent(native_quality$outlier_share),
+  format_percent(reduced_quality$largest_topic_share)
+))
+```
+
+## What was compared
+
+Both methods used the same 8,976 translated rows and the same pinned
+`all-MiniLM-L6-v2` Sentence-BERT model revision. A 32-row cross-runtime audit
+found a maximum absolute embedding difference of
+`r format(comparison$method_details$value[comparison$method_details$item == "embedding_parity_max_abs_difference"], scientific = TRUE)`;
+NumPy `allclose()` passed. Consequently, the differences below come from topic
+construction, not materially different sentence vectors.
+
+```{r methods-table}
+method_table <- data.frame(
+  Method = c("sbert_6", "text_native", "text_reduced_6"),
+  Topic_construction = c(
+    "Deterministic Lloyd k-means, exactly 6 clusters",
+    "UMAP + HDBSCAN + BERTopic c-TF-IDF/MMR",
+    "Native BERTopic topics merged post hoc to 6 substantive topics"
+  ),
+  Topics = quality$topic_count,
+  Outliers = quality$outlier_rows,
+  Outlier_share = format_percent(quality$outlier_share),
+  Largest_topic_share = format_percent(quality$largest_topic_share),
+  stringsAsFactors = FALSE
+)
+knitr::kable(method_table, row.names = FALSE)
+```
+
+<div class="note">
+BERTopic preserves its outlier group during reduction. Requesting seven total
+groups was therefore required to obtain six non-outlier topics plus topic −1.
+</div>
+
+## Agreement between outcomes
+
+Adjusted Rand Index (ARI) is 1 for identical partitions up to label renaming and
+near 0 when agreement is close to chance. Normalized mutual information (NMI)
+ranges from 0 to 1. The results show that the two approaches impose substantially
+different structures.
+
+```{r agreement-table}
+agreement_display <- agreement[
+  agreement$subset %in% c("all_rows", "native_non_outliers") &
+    agreement$method_a == "sbert_6" &
+    agreement$method_b %in% c("text_native", "text_reduced_6"),
+  c(
+    "subset", "method_a", "method_b", "n_rows", "adjusted_rand",
+    "normalized_mutual_information", "normalized_variation_information"
+  )
+]
+agreement_display$adjusted_rand <- format_metric(
+  agreement_display$adjusted_rand
+)
+agreement_display$normalized_mutual_information <- format_metric(
+  agreement_display$normalized_mutual_information
+)
+agreement_display$normalized_variation_information <- format_metric(
+  agreement_display$normalized_variation_information
+)
+knitr::kable(agreement_display, row.names = FALSE)
+```
+
+## Six-topic assignment overlap
+
+Rows show the original six SBERT topics; columns show reduced `text` topics.
+Column −1 contains native BERTopic outliers. The large column 0 absorbs most
+SBERT topics 1–3, demonstrating why the reduced output is not a useful six-way
+taxonomy.
+
+```{r cross-tab}
+overlap <- addmargins(table(
+  SBERT = assignments$sbert_topic,
+  text_reduced = assignments$text_reduced_topic
+))
+knitr::kable(as.data.frame.matrix(overlap), row.names = TRUE)
+```
+
+## Topic balance
+
+```{r balance-plot}
+balance <- topic_summaries[
+  topic_summaries$method %in% c("sbert_6", "text_reduced_6"),
+  c("method", "topic", "n_rows", "proportion_of_modeled")
+]
+balance$label <- paste(balance$method, balance$topic, sep = " / topic ")
+balance <- balance[order(balance$n_rows), , drop = FALSE]
+barplot(
+  balance$n_rows,
+  names.arg = balance$label,
+  horiz = TRUE,
+  las = 1,
+  col = ifelse(balance$method == "sbert_6", "#0f766e", "#c2410c"),
+  border = NA,
+  xlab = "Modeled rows (outliers excluded)",
+  main = "Topic-size imbalance"
+)
+legend(
+  "bottomright",
+  legend = c("sbert_6", "text_reduced_6"),
+  fill = c("#0f766e", "#c2410c"),
+  bty = "n"
+)
+```
+
+## Common embedding-space quality
+
+All distances and silhouettes below were calculated in the same original
+384-dimensional normalized MiniLM embedding space. Native `text` forms tighter
+small clusters, but it does so by creating 405 topics and excluding 17.8% of
+rows. After reduction to six, its cohesion is worse than the original six-cluster
+solution and its size balance collapses.
+
+```{r quality-table}
+quality_display <- quality[
+  , c(
+    "method", "topic_count", "modeled_rows", "outlier_rows",
+    "largest_topic_share", "normalized_size_entropy",
+    "mean_cosine_distance", "sampled_mean_silhouette"
+  )
+]
+quality_display$largest_topic_share <- format_percent(
+  quality_display$largest_topic_share
+)
+numeric_columns <- c(
+  "normalized_size_entropy", "mean_cosine_distance",
+  "sampled_mean_silhouette"
+)
+quality_display[numeric_columns] <- lapply(
+  quality_display[numeric_columns],
+  format_metric
+)
+knitr::kable(quality_display, row.names = FALSE)
+```
+
+## What the reduced `text` topics contain
+
+```{r reduced-summary}
+reduced_summary <- topic_summaries[
+  topic_summaries$method == "text_reduced_6",
+  c(
+    "topic", "n_rows", "proportion_of_modeled", "top_terms",
+    "representative_1", "representative_2"
+  )
+]
+reduced_summary$proportion_of_modeled <- format_percent(
+  reduced_summary$proportion_of_modeled
+)
+knitr::kable(reduced_summary, row.names = FALSE)
+```
+
+The dominant reduced topic mixes selection instructions, spatial-relation
+questions, and quantity/box prompts. Smaller topics isolate recognizable narrow
+templates—animal/person descriptions, number trains, retry prompts, grass
+definitions, and untranslated Cyrillic text—but that does not rescue the overall
+six-topic balance.
+
+## Native `text` result
+
+The ten largest non-outlier native topics are shown below. Their small sizes and
+object/template-specific labels illustrate over-fragmentation rather than a
+six-theme structure.
+
+```{r native-topics}
+native_display <- comparison$native_topic_info
+native_display <- native_display[native_display$Topic >= 0, , drop = FALSE]
+native_display <- native_display[order(-native_display$Count), , drop = FALSE]
+native_display <- head(native_display, 10L)
+knitr::kable(
+  native_display[, c("Topic", "Count", "Name", "Representation")],
+  row.names = FALSE
+)
+```
+
+## Conclusion and recommendation
+
+The confusing result is primarily a **corpus-definition problem**, not an SBERT
+implementation problem. These translations contain many near-identical
+instruction templates whose object names vary. Sentence embeddings naturally
+encode both the template and its objects; native BERTopic then separates many
+object/template variants, while forcing six clusters merges unrelated intents.
+
+For six interpretable pedagogical topics, the next defensible analysis should
+define the intended level of meaning first and then normalize the text—for
+example, mask object names, numbers, colors, and positions before embedding—or
+build a small reviewed intent taxonomy and evaluate clusters against it. Merely
+switching from the Python-free `sbert` implementation to `text` does not solve
+the issue.
+
+## Reproducibility notes
+
+```{r details}
+knitr::kable(comparison$method_details, row.names = FALSE)
+```

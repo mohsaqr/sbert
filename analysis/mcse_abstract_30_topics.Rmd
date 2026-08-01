@@ -1,0 +1,608 @@
+---
+title: "MCSE Abstract Topics"
+subtitle: "Review of a forced 30-topic semantic clustering of canonical abstracts"
+date: "`r format(Sys.time(), '%Y-%m-%d')`"
+output:
+  html_document:
+    self_contained: true
+    toc: true
+    toc_float: true
+    code_folding: hide
+    theme: flatly
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = FALSE,
+  warning = FALSE,
+  message = FALSE,
+  fig.width = 10,
+  fig.height = 6,
+  dpi = 120
+)
+
+artifact_relative_path <- file.path(
+  "outputs",
+  "mcse_abstract_30_topics",
+  "mcse_abstract_30_topics.rds"
+)
+artifact_candidates <- c(
+  artifact_relative_path,
+  file.path("..", artifact_relative_path)
+)
+artifact_exists <- file.exists(artifact_candidates)
+if (!any(artifact_exists)) {
+  stop(
+    paste0(
+      "The completed MCSE topic artifact is not available. Expected ",
+      artifact_relative_path,
+      ". Run analysis/mcse_abstract_30_topics.R before knitting this review."
+    ),
+    call. = FALSE
+  )
+}
+
+result_path <- artifact_candidates[which(artifact_exists)[[1L]]]
+project_root <- normalizePath(
+  file.path(dirname(result_path), "..", ".."),
+  mustWork = TRUE
+)
+source(file.path(
+  project_root,
+  "analysis",
+  "sentence_level_topic_functions.R"
+))
+source(file.path(project_root, "R", "topics.R"))
+result <- readRDS(result_path)
+required_components <- c(
+  "source_assignments", "canonical_abstracts", "topic_summary",
+  "representatives", "boundary_abstracts", "frequent_ngrams",
+  "review_queue", "restart_diagnostics", "data_audit", "model", "method"
+)
+stopifnot(
+  is.list(result),
+  all(required_components %in% names(result)),
+  is.data.frame(result$source_assignments),
+  is.data.frame(result$canonical_abstracts),
+  is.data.frame(result$topic_summary),
+  is.data.frame(result$representatives),
+  is.data.frame(result$boundary_abstracts),
+  is.data.frame(result$frequent_ngrams),
+  is.data.frame(result$restart_diagnostics),
+  is.data.frame(result$data_audit),
+  is.data.frame(result$method)
+)
+
+assignments <- result$source_assignments
+abstracts <- result$canonical_abstracts
+topics <- result$topic_summary
+representatives <- result$representatives
+boundaries <- result$boundary_abstracts
+ngrams <- result$frequent_ngrams
+restarts <- result$restart_diagnostics
+
+stopifnot(
+  nrow(assignments) == 16453L,
+  sum(assignments$included) == 15660L,
+  nrow(abstracts) == 15308L,
+  nrow(topics) == 30L,
+  identical(sort(topics$topic), seq_len(30L)),
+  sum(topics$n_source_records) == 15660L,
+  sum(topics$n_distinct_abstracts) == 15308L,
+  nrow(representatives) == 120L,
+  nrow(boundaries) == 60L,
+  nrow(ngrams) == 900L,
+  sum(restarts$selected) == 1L,
+  all(is.finite(topics$median_cosine_distance)),
+  all(is.finite(boundaries$assignment_margin))
+)
+
+audit_value <- setNames(result$data_audit$value, result$data_audit$metric)
+
+format_count <- function(value) {
+  stopifnot(is.numeric(value), !anyNA(value))
+  format(value, big.mark = ",", scientific = FALSE, trim = TRUE)
+}
+
+format_percent <- function(value, digits = 1L) {
+  stopifnot(
+    is.numeric(value),
+    !anyNA(value),
+    is.numeric(digits),
+    length(digits) == 1L,
+    digits == as.integer(digits)
+  )
+  sprintf(paste0("%.", digits, "f%%"), 100 * value)
+}
+
+html_escape <- function(value) {
+  stopifnot(is.character(value), !anyNA(value))
+  value |>
+    gsub("&", "&amp;", x = _, fixed = TRUE) |>
+    gsub("<", "&lt;", x = _, fixed = TRUE) |>
+    gsub(">", "&gt;", x = _, fixed = TRUE) |>
+    gsub('"', "&quot;", x = _, fixed = TRUE) |>
+    gsub("'", "&#39;", x = _, fixed = TRUE)
+}
+
+compact_text <- function(value, maximum = 150L) {
+  stopifnot(
+    is.character(value),
+    !anyNA(value),
+    is.numeric(maximum),
+    length(maximum) == 1L,
+    maximum >= 4L
+  )
+  value <- trimws(gsub("[[:space:]]+", " ", value))
+  ifelse(
+    nchar(value, type = "chars") <= maximum,
+    value,
+    paste0(substr(value, 1L, maximum - 1L), "…")
+  )
+}
+
+stopifnot(
+  identical(format_count(1234), "1,234"),
+  identical(format_percent(0.125), "12.5%"),
+  identical(html_escape("<&"), "&lt;&amp;"),
+  identical(compact_text("abcdef", 5L), "abcd…")
+)
+```
+
+<style>
+body { color: #25364a; font-size: 15px; }
+h1, h2, h3, h4 { color: #153e5c; }
+.kpi-grid { display: grid; grid-template-columns: repeat(5, minmax(135px, 1fr)); gap: 12px; margin: 18px 0 24px; }
+.kpi { background: #f3f7fa; border-top: 4px solid #247ba0; border-radius: 6px; padding: 13px 15px; }
+.kpi-value { color: #153e5c; font-size: 25px; font-weight: 700; }
+.kpi-label { color: #526579; font-size: 11px; letter-spacing: .04em; text-transform: uppercase; }
+.caveat { background: #fff7dd; border-left: 6px solid #d99000; border-radius: 5px; padding: 15px 18px; margin: 18px 0 24px; }
+.method-note { background: #edf8f5; border-left: 6px solid #238b78; border-radius: 5px; padding: 15px 18px; margin: 18px 0 24px; }
+.topic-block { border: 1px solid #d6e0e8; border-radius: 7px; padding: 14px 18px; margin: 16px 0; background: #fff; }
+.topic-block h3 { margin-top: 0; }
+.topic-meta { color: #5d6d7e; margin-bottom: 12px; }
+.canonical-label { background: #f4f7f9; border-left: 4px solid #247ba0; padding: 10px 13px; margin: 10px 0; }
+details { border-top: 1px solid #e3e8ed; padding: 9px 0; }
+summary { color: #153e5c; cursor: pointer; font-weight: 600; }
+.paper-meta { color: #5d6d7e; font-size: 13px; margin: 7px 0; }
+.abstract { white-space: normal; line-height: 1.45; }
+.secondary { background: #f7f7f7; border-left: 5px solid #6b7280; padding: 13px 16px; margin: 14px 0; }
+table { font-size: 12px; }
+th { background: #247ba0 !important; color: #fff !important; }
+@media (max-width: 900px) { .kpi-grid { grid-template-columns: repeat(2, minmax(130px, 1fr)); } }
+</style>
+
+## Corpus audit
+
+```{r audit-kpis, results='asis'}
+kpi_values <- c(
+  format_count(audit_value[["source_rows"]]),
+  format_count(audit_value[["modeled_source_rows"]]),
+  format_count(audit_value[["distinct_clean_abstracts"]]),
+  format_count(audit_value[["missing_abstracts"]]),
+  format_count(audit_value[["placeholder_abstracts"]])
+)
+kpi_labels <- c(
+  "Source records", "Modeled records", "Distinct cleaned abstracts",
+  "Missing abstracts", "Placeholder abstracts"
+)
+kpi_items <- paste0(
+  '<div class="kpi"><div class="kpi-value">',
+  kpi_values,
+  '</div><div class="kpi-label">',
+  kpi_labels,
+  '</div></div>'
+)
+cat('<div class="kpi-grid">', paste(kpi_items, collapse = ""), '</div>')
+```
+
+The analysis excludes missing abstracts and the literal placeholder
+`[NO ABSTRACT AVAILABLE]`. It fits each distinct cleaned abstract once, then
+maps the assignment back to every source record. Long abstracts are represented
+by sentence-aware chunks combined into one normalized abstract embedding.
+
+```{r audit-table}
+audit_display <- result$data_audit
+audit_display$value <- format_count(audit_display$value)
+knitr::kable(
+  audit_display,
+  col.names = c("Audit metric", "Value"),
+  row.names = FALSE
+)
+```
+
+<div class="caveat">
+<strong>Forced topic-count caveat.</strong> Thirty topics were fixed by the
+analysis specification. They were not inferred as a uniquely optimal number
+from the corpus. Topic IDs are arbitrary and run-specific. Each automatic label
+is the exact lead sentence of the centroid-nearest corpus abstract—not a
+validated taxonomy or a generated summary. No c-TF-IDF or keyword score was
+used for assignments or labels.
+</div>
+
+## Topic size and label overview
+
+```{r topic-size-plot}
+topic_order <- order(topics$n_source_records)
+old_par <- graphics::par(mar = c(5, 5, 3, 1))
+graphics::barplot(
+  topics$n_source_records[topic_order],
+  names.arg = paste0("T", topics$topic[topic_order]),
+  horiz = TRUE,
+  las = 1,
+  col = "#247ba0",
+  border = NA,
+  xlab = "Source records",
+  main = "Source-record prevalence across 30 forced topics"
+)
+graphics::par(old_par)
+```
+
+```{r topic-overview-table}
+topic_display <- topics[
+  , c(
+    "topic", "canonical_lead_sentence", "canonical_paper_title",
+    "n_source_records", "source_record_share", "n_distinct_abstracts",
+    "median_cosine_distance", "p90_cosine_distance", "year_min", "year_max"
+  )
+]
+names(topic_display) <- c(
+  "Topic", "Exact corpus label", "Canonical paper", "Source records",
+  "Share", "Distinct abstracts", "Median distance", "P90 distance",
+  "First year", "Last year"
+)
+topic_display$`Exact corpus label` <- compact_text(
+  topic_display$`Exact corpus label`,
+  180L
+)
+topic_display$`Canonical paper` <- compact_text(
+  topic_display$`Canonical paper`,
+  100L
+)
+topic_display$Share <- format_percent(topic_display$Share)
+topic_display$`Median distance` <- sprintf("%.3f", topic_display$`Median distance`)
+topic_display$`P90 distance` <- sprintf("%.3f", topic_display$`P90 distance`)
+knitr::kable(topic_display, row.names = FALSE)
+```
+
+Cosine distance is not a probability or confidence score. Smaller values mean
+that an abstract is closer to its assigned topic centroid. Assignment margin is
+the selected-centroid similarity minus the second-best similarity; smaller
+margins identify less distinct assignments.
+
+## Representative papers and canonical abstracts
+
+The four representatives for each topic were selected from the central quarter
+of that topic. Rank 1 is the centroid-nearest canonical abstract. Ranks 2–4 add
+embedding-space diversity through maximal marginal relevance. The labels and
+representatives therefore remain semantic, full-abstract evidence.
+
+```{r representative-abstracts, results='asis'}
+representative_topic_html <- vapply(
+  seq_len(nrow(topics)),
+  function(topic_row) {
+    topic_id <- topics$topic[[topic_row]]
+    topic_representatives <- representatives[
+      representatives$topic == topic_id,
+      ,
+      drop = FALSE
+    ]
+    topic_representatives <- topic_representatives[
+      order(topic_representatives$rank),
+      ,
+      drop = FALSE
+    ]
+    paper_html <- vapply(
+      seq_len(nrow(topic_representatives)),
+      function(representative_row) {
+        paper <- topic_representatives[representative_row, , drop = FALSE]
+        doi_text <- if (
+          is.na(paper$doi[[1L]]) || !nzchar(trimws(paper$doi[[1L]]))
+        ) {
+          "DOI unavailable"
+        } else {
+          paste0("DOI: ", html_escape(paper$doi[[1L]]))
+        }
+        sprintf(
+          paste0(
+            '<details%s><summary>Rank %d%s · %s (%s)</summary>',
+            '<div class="paper-meta">%s · %s · %s · %s · distance %.3f · margin %.4f</div>',
+            '<p class="abstract">%s</p></details>'
+          ),
+          if (paper$rank[[1L]] == 1L) " open" else "",
+          paper$rank[[1L]],
+          if (paper$rank[[1L]] == 1L) " — canonical" else "",
+          html_escape(paper$title[[1L]]),
+          html_escape(as.character(paper$year[[1L]])),
+          html_escape(paper$authors[[1L]]),
+          html_escape(ifelse(is.na(paper$source[[1L]]), "Source unavailable", paper$source[[1L]])),
+          doi_text,
+          html_escape(paper$source_record_id[[1L]]),
+          paper$cosine_distance_to_centroid[[1L]],
+          paper$assignment_margin[[1L]],
+          html_escape(paper$cleaned_abstract[[1L]])
+        )
+      },
+      character(1)
+    )
+    sprintf(
+      paste0(
+        '<div class="topic-block"><h3>Topic %d</h3>',
+        '<div class="topic-meta">%s source records · %s distinct abstracts · %s</div>',
+        '<div class="canonical-label"><strong>Exact corpus label:</strong> %s</div>',
+        '%s</div>'
+      ),
+      topic_id,
+      format_count(topics$n_source_records[[topic_row]]),
+      format_count(topics$n_distinct_abstracts[[topic_row]]),
+      format_percent(topics$source_record_share[[topic_row]]),
+      html_escape(topics$canonical_lead_sentence[[topic_row]]),
+      paste(paper_html, collapse = "\n")
+    )
+  },
+  character(1)
+)
+cat(paste(representative_topic_html, collapse = "\n"))
+```
+
+## Boundary cases
+
+These are the two lowest-margin canonical abstracts assigned to each topic.
+They are a qualitative stress test of the 30-way partition. A low margin means
+that the first- and second-best centroids were similar; it does not estimate an
+error probability.
+
+```{r boundary-table}
+boundary_display <- boundaries[
+  , c(
+    "topic", "rank", "title", "year", "source_record_id",
+    "cosine_distance_to_centroid", "assignment_margin", "cleaned_abstract"
+  )
+]
+names(boundary_display) <- c(
+  "Topic", "Boundary rank", "Paper title", "Year", "Record ID",
+  "Cosine distance", "Assignment margin", "Abstract preview"
+)
+boundary_display$`Paper title` <- compact_text(boundary_display$`Paper title`, 90L)
+boundary_display$`Abstract preview` <- compact_text(
+  boundary_display$`Abstract preview`,
+  180L
+)
+boundary_display$`Cosine distance` <- sprintf(
+  "%.3f",
+  boundary_display$`Cosine distance`
+)
+boundary_display$`Assignment margin` <- sprintf(
+  "%.4f",
+  boundary_display$`Assignment margin`
+)
+knitr::kable(boundary_display, row.names = FALSE)
+```
+
+The complete review queue also includes excluded source records and every
+canonical abstract in the lowest 10% of assignment margins. It remains in the
+saved RDS and exported CSV rather than being printed in full here.
+
+## Restart diagnostics
+
+Fifty seeded spherical k-means restarts were evaluated. The selected restart is
+the size-balanced candidate with the highest normalized size entropy among
+solutions within 0.5% of the best cosine objective and with a minimum topic size
+of at least 30. Non-converged restarts are never eligible.
+
+Adjusted Rand Index (ARI) compares every restart with the selected partition
+without depending on arbitrary topic numbers. An ARI of 1 means the partitions
+are identical; values near 0 indicate chance-level agreement.
+
+```{r restart-plots}
+selected_restart <- restarts$selected
+old_par <- graphics::par(mfrow = c(1, 2), mar = c(5, 5, 3, 1))
+graphics::plot(
+  restarts$seed,
+  restarts$objective,
+  pch = ifelse(selected_restart, 19, 1),
+  col = ifelse(selected_restart, "#d94841", "#7b8794"),
+  xlab = "Restart seed",
+  ylab = "Total assigned cosine similarity",
+  main = "Objective across restarts"
+)
+graphics::points(
+  restarts$seed[selected_restart],
+  restarts$objective[selected_restart],
+  pch = 19,
+  col = "#d94841",
+  cex = 1.3
+)
+graphics::plot(
+  restarts$objective,
+  restarts$normalized_size_entropy,
+  pch = ifelse(selected_restart, 19, 1),
+  col = ifelse(selected_restart, "#d94841", "#247ba0"),
+  xlab = "Total assigned cosine similarity",
+  ylab = "Normalized topic-size entropy",
+  main = "Fit versus size balance"
+)
+graphics::points(
+  restarts$objective[selected_restart],
+  restarts$normalized_size_entropy[selected_restart],
+  pch = 19,
+  col = "#d94841",
+  cex = 1.3
+)
+graphics::par(old_par)
+```
+
+```{r restart-table}
+restart_order <- order(
+  -restarts$selected,
+  -restarts$objective,
+  restarts$seed
+)
+restart_display <- utils::head(restarts[restart_order, , drop = FALSE], 12L)
+restart_display$objective <- sprintf("%.4f", restart_display$objective)
+restart_display$normalized_size_entropy <- sprintf(
+  "%.4f",
+  restart_display$normalized_size_entropy
+)
+knitr::kable(restart_display, row.names = FALSE)
+```
+
+## Raw n-grams — secondary audit only
+
+<div class="secondary">
+<strong>Not part of the topic model.</strong> These raw unigram, bigram, and
+trigram counts were calculated after assignment. They were not used to create
+embeddings, fit centroids, assign abstracts, select representatives, or produce
+automatic labels. They are shown only as a lexical audit of each semantic
+cluster.
+</div>
+
+### Most common words by topic
+
+Each panel shows the eight most frequent remaining unigrams in the distinct
+abstracts assigned to that topic. Standard English stop words and ubiquitous
+corpus terms—including *computer*, *students*, *coding*, *programming*,
+*computing*, and *education*—are excluded so the panels reveal topic-specific
+language. Research boilerplate such as *paper*, *study*, *course*, *results*,
+*used*, and *using* is excluded for the same reason.
+
+Bar lengths remain raw word-occurrence counts, not c-TF-IDF weights or document
+frequencies. Longer abstracts can therefore contribute more occurrences. The
+additional exclusions affect only this descriptive plot; embeddings and topic
+assignments are unchanged.
+
+```{r common-word-bars, fig.width=14, fig.height=28}
+common_word_stopwords <- unique(c(
+  sbert_stopwords(),
+  mcse_common_word_stopwords()
+))
+common_word_tables <- lapply(
+  seq_len(30L),
+  function(topic_id) {
+    frequent_sentence_ngrams(
+      abstracts$cleaned_abstract[abstracts$topic == topic_id],
+      n = 1L,
+      top_n = 8L,
+      stopwords = common_word_stopwords
+    )
+  }
+)
+common_word_data <- do.call(
+  rbind,
+  lapply(
+    seq_along(common_word_tables),
+    function(topic_id) {
+      data.frame(
+        topic = rep.int(topic_id, nrow(common_word_tables[[topic_id]])),
+        common_word_tables[[topic_id]],
+        stringsAsFactors = FALSE
+      )
+    }
+  )
+)
+common_word_data <- common_word_data[
+  order(common_word_data$topic, common_word_data$rank),
+  ,
+  drop = FALSE
+]
+stopifnot(
+  nrow(common_word_data) == 240L,
+  identical(sort(unique(common_word_data$topic)), seq_len(30L)),
+  identical(
+    as.integer(table(common_word_data$topic)),
+    rep.int(8L, 30L)
+  ),
+  all(common_word_data$frequency > 0L),
+  !any(common_word_data$ngram %in% mcse_common_word_stopwords()),
+  all(vapply(
+    split(common_word_data$rank, common_word_data$topic),
+    identical,
+    logical(1),
+    seq_len(8L)
+  ))
+)
+
+old_par <- graphics::par(
+  mfrow = c(6, 5),
+  mar = c(2.4, 7.2, 2.5, 0.7),
+  oma = c(3.5, 0.5, 2, 0.5),
+  xaxs = "i"
+)
+plot_positions <- lapply(
+  seq_len(30L),
+  function(topic_id) {
+    topic_words <- common_word_data[
+      common_word_data$topic == topic_id,
+      ,
+      drop = FALSE
+    ]
+    graphics::barplot(
+      rev(topic_words$frequency),
+      names.arg = rev(topic_words$ngram),
+      horiz = TRUE,
+      las = 1,
+      col = "#247ba0",
+      border = NA,
+      cex.names = 0.78,
+      cex.axis = 0.70,
+      main = sprintf("Topic %02d", topic_id),
+      xlab = ""
+    )
+  }
+)
+graphics::mtext(
+  "Raw unigram occurrences after generic corpus-word removal",
+  side = 1,
+  outer = TRUE,
+  line = 1.2,
+  cex = 1.05
+)
+graphics::par(old_par)
+stopifnot(
+  length(plot_positions) == 30L,
+  all(vapply(plot_positions, length, integer(1)) == 8L)
+)
+```
+
+```{r ngram-sections, results='asis'}
+ngram_topic_html <- vapply(
+  seq_len(nrow(topics)),
+  function(topic_row) {
+    topic_id <- topics$topic[[topic_row]]
+    topic_ngrams <- ngrams[
+      ngrams$topic == topic_id & ngrams$rank <= 5L,
+      c("n", "rank", "ngram", "frequency"),
+      drop = FALSE
+    ]
+    names(topic_ngrams) <- c("N", "Rank", "Raw n-gram", "Frequency")
+    table_html <- paste(
+      knitr::kable(topic_ngrams, format = "html", row.names = FALSE),
+      collapse = "\n"
+    )
+    sprintf(
+      '<details><summary>Topic %d raw n-grams</summary>%s</details>',
+      topic_id,
+      table_html
+    )
+  },
+  character(1)
+)
+cat(paste(ngram_topic_html, collapse = "\n"))
+```
+
+## Method record
+
+```{r method-table}
+knitr::kable(
+  result$method,
+  col.names = c("Method item", "Value"),
+  row.names = FALSE
+)
+```
+
+<div class="method-note">
+This report is an interpretation aid, not evidence that 30 is the natural or
+only defensible topic count. Review the canonical abstracts, diverse
+representatives, and low-margin boundary papers together before assigning
+short human-readable topic names or using the topics in substantive claims.
+</div>

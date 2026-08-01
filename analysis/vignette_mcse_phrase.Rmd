@@ -1,0 +1,276 @@
+---
+title: "Thirty Phrase-Level Topics in Computing Education Research"
+author: "sbert 0.4.0"
+date: "`r format(Sys.Date())`"
+output:
+  html_document:
+    toc: true
+    toc_depth: 1
+    theme: cosmo
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE, message = FALSE, warning = FALSE,
+  fig.width = 7, fig.height = 4.2, dpi = 150, out.width = "100%"
+)
+suppressMessages(devtools::load_all("..", quiet = TRUE))
+fig_dir <- file.path("..", "tmp", "vignette_mcse_phrase_figs")
+dir.create(fig_dir, recursive = TRUE, showWarnings = FALSE)
+mcse_path <- file.path(
+  "/Users/mohammedsaqr/Library/CloudStorage/GoogleDrive-saqr@saqr.me",
+  "Other computers/My MacBook Pro (1)/AKA/Networks_CSE/MCSE_gold.RDS"
+)
+```
+
+# Why this tutorial
+
+This is the phrase-level member of the MCSE vignette family, and the
+level is not cosmetic: the *phrase is the unit of analysis*. Abstracts
+are segmented at the finest granularity the package offers — sentence
+ends, clause separators, and commas — the model is fitted on the phrase
+embeddings, the topic centroids are averages of phrases, and every
+representative unit shown under a topic is one of the units the model
+was trained on, verbatim, in the exact form it was embedded.
+
+Phrases are the field's smallest reusable expressions: named methods,
+measured constructs, list items, qualifiers. A phrase-level model
+therefore clusters *terminology in context* rather than papers or
+claims — expect tighter, more lexical topics than in the sentence-level
+sibling, and expect some units to be fragments rather than checkable
+claims. That trade is the point of this level; the `merge_below = 5`
+guard keeps the fragments from degenerating into single words.
+
+| Component | Verb | Question it answers |
+|---|---|---|
+| Topic model | `sbert_topics()` | What recurring expressions exist, and how common are they? |
+| Evaluation | `sbert_coherence()`, `sbert_diversity()` | Which topics are trustworthy? |
+| Frequent keywords | `sbert_beta()` | What does each topic talk about most? |
+| Distinctive keywords | `topic_model$terms` | What does it talk about that others do not? |
+| Evidence | `sbert_representatives()` | Which training phrases define it? |
+
+```{r library, eval=FALSE}
+library(sbert)
+```
+
+# The corpus: abstract phrases
+
+Records with no usable abstract are dropped, each remaining abstract is
+segmented at phrase level (`merge_below = 5` folds shards under five
+words into their neighbor), and the phrases are deduplicated — short
+units repeat far more than sentences do, so multiplicity is kept as a
+weight and matters throughout. Titles are left out: they are compressed
+noun phrases of a different register.
+
+```{r data}
+mcse <- readRDS(mcse_path)
+usable <- subset(mcse, !is.na(AB) & !startsWith(trimws(AB), "[NO ABSTRACT"))
+phrases <- sbert_segment(
+  unique(trimws(usable$AB)),
+  level = "phrase",
+  merge_below = 5
+)
+corpus <- sbert_dedupe(phrases$text)
+nrow(corpus)
+```
+
+# Embedding the phrases
+
+Phrases are the shortest units in the family, so the 512-word-piece
+window of `multi-qa-MiniLM-L6-cos-v1` is never a constraint — the model
+is chosen to keep this vignette in the same embedding space as its
+sentence and clause siblings. This level has the largest corpus of the
+three; encoding it is the expensive step, runs once on eight threads,
+and is bit-identical every time.
+
+```{r embeddings}
+qa_minilm <- sbert_load_model("multi-qa-MiniLM-L6-cos-v1", threads = 8L)
+embeddings <- sbert_encode(corpus$text, model = qa_minilm)
+```
+
+# The thirty-topic model
+
+The model is fitted on the phrase embeddings themselves — thirty
+centroids in phrase space.
+
+```{r model}
+topic_model <- sbert_topics(
+  corpus$text,
+  n_topics = 30,
+  embeddings = embeddings,
+  n_terms = 8,
+  n_representatives = 3
+)
+topic_model
+```
+
+## Should you trust these topics?
+
+With thirty topics the evaluation table is not a formality — it is the
+reading order. NPMI coherence rewards topics whose top terms genuinely
+co-occur in their phrases; the topics at the top of this table have a
+vocabulary of their own, and the ones at the bottom should be
+interpreted from their representative phrases, not their keywords.
+
+```{r evaluate}
+summary(topic_model)
+```
+
+```{r coherence}
+sbert_coherence(topic_model, measure = "npmi")
+```
+
+## Size on two scales
+
+At phrase level the two scales diverge more than anywhere else in the
+family: formulaic expressions repeat massively, so a topic can be small
+in distinct phrases yet large in occurrences. The distinct count
+measures a topic's variety; the weighted share measures its presence in
+the literature. Topics whose weighted share far exceeds their distinct
+share are built on the field's stock phrases.
+
+```{r sizes}
+plot(topic_model, type = "sizes")
+```
+
+```{r weighted}
+sbert_topic_sizes(topic_model, weights = corpus$n)
+```
+
+# Two keyword views, one topic
+
+`sbert_beta()` is the generative view — the words a topic uses most.
+The class-based TF-IDF scores in `topic_model$terms` are the
+discriminative view — the words a topic owns. At phrase level the two
+views converge more than at any other level: a phrase is often little
+more than its keywords, so the bars and the units below them should
+visibly agree. Where they do not, the topic is held together by
+embedding similarity that the vocabulary does not show — read its
+phrases.
+
+```{r beta}
+beta <- sbert_beta(topic_model)
+head(subset(beta, topic == 1), 8)
+```
+
+```{r terms}
+head(subset(topic_model$terms, topic == 1), 8)
+```
+
+# Representative phrases from the training set
+
+No second corpus and no second encoding: the candidates are exactly the
+units the model was fitted on, under the embeddings it was fitted with.
+`sbert_representatives()` ranks them by *distinctiveness margin* — the
+gap between a phrase's own topic and the second-best — so the evidence
+is the expression that belongs to this topic and could belong to no
+other, not merely the one nearest a centroid.
+
+```{r representatives}
+evidence <- sbert_representatives(
+  topic_model,
+  corpus$text,
+  embeddings = embeddings
+)
+```
+
+# The topics, panel by panel
+
+Each panel pairs the two keyword bars with the topic's three
+highest-margin training phrases, verbatim, with the distance to the
+topic centroid in parentheses. The phrases are the ground truth: the
+bars summarize, the phrases verify.
+
+```{r panel-helper, include=FALSE}
+palette_colors <- sbert_palette(nrow(topic_model$topics))
+
+draw_topic_panel <- function(model, beta, topic_id, color, path) {
+  count_rows <- head(subset(beta, topic == topic_id), 8)
+  score_rows <- head(subset(model$terms, topic == topic_id), 8)
+  png(path, width = 2100, height = 1100, res = 300)
+  op <- par(
+    mfrow = c(1, 2), mar = c(2.6, 7.2, 2.2, 1.2),
+    mgp = c(1.5, 0.35, 0), tcl = -0.2, family = "sans"
+  )
+  on.exit({par(op); dev.off()}, add = TRUE)
+  draw_bar_column(
+    values = rev(count_rows$count),
+    labels = rev(count_rows$term),
+    title = "Within-topic count",
+    color = color,
+    value_format = "%d"
+  )
+  draw_bar_column(
+    values = rev(score_rows$score),
+    labels = rev(score_rows$term),
+    title = "Class-based TF-IDF",
+    color = grDevices::adjustcolor(color, alpha.f = 0.55),
+    value_format = "%.3f"
+  )
+  invisible(path)
+}
+
+draw_bar_column <- function(values, labels, title, color, value_format) {
+  positions <- barplot(
+    values,
+    names.arg = labels,
+    horiz = TRUE,
+    las = 1,
+    border = NA,
+    col = color,
+    xlim = c(0, max(values) * 1.22),
+    cex.names = 0.72,
+    cex.axis = 0.6,
+    axes = FALSE
+  )
+  text(
+    x = values,
+    y = positions,
+    labels = sprintf(value_format, values),
+    pos = 4,
+    cex = 0.6,
+    col = "grey30"
+  )
+  title(main = title, adj = 0, cex.main = 0.85, font.main = 2, line = 0.6)
+}
+```
+
+```{r panels, echo=FALSE, results="asis"}
+invisible(lapply(
+  seq_len(nrow(topic_model$topics)),
+  function(topic_id) {
+    topic_row <- subset(topic_model$topics, topic == topic_id)
+    cat(sprintf(
+      "# Topic %d — %s\n\n%d phrases (%.1f%% of the corpus)\n\n",
+      topic_id,
+      topic_row$label,
+      topic_row$n_documents,
+      100 * topic_row$proportion
+    ))
+    figure_path <- file.path(fig_dir, sprintf("topic_%02d.png", topic_id))
+    draw_topic_panel(topic_model, beta, topic_id, palette_colors[[topic_id]], figure_path)
+    cat(sprintf("<img src=\"%s\" width=\"100%%\"/>\n\n", knitr::image_uri(figure_path)))
+    statements <- subset(evidence, topic == topic_id)
+    cat("**Representative statements**\n\n")
+    cat(sprintf(
+      "> %s *(%.3f)*\n\n",
+      statements$text,
+      statements$distance
+    ), sep = "")
+  }
+))
+```
+
+# Where to go from here
+
+`predict()` places any new phrase into this map without refitting;
+`sbert_membership()` grades phrases that sit between topics; and running
+`predict()` on the segmented phrases of a new abstract profiles that
+paper as a mixture over these expression topics. To compare this map
+against the sentence-level and paper-level views of the same literature,
+read the sibling vignettes — same corpus, same embedding model,
+different unit of analysis.
+
+```{r session, echo=FALSE}
+sessionInfo()$R.version$version.string
+```

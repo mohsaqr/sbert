@@ -1,0 +1,88 @@
+---
+title: "Genuine Sentence-BERT in R Without Python"
+output:
+  html_document:
+    self_contained: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, collapse = TRUE, comment = "#>")
+if (!"package:sbert" %in% search()) {
+  pkgload::load_all(quiet = TRUE)
+}
+
+model_source <- Sys.getenv("SBERT_TEST_MODEL_DIR", unset = "")
+if (!nzchar(model_source)) {
+  stop(paste0(
+    "Set SBERT_TEST_MODEL_DIR to a directory containing model.onnx and ",
+    "tokenizer.json before rendering."
+  ))
+}
+cache_dir <- tempfile("sbert-html-cache-")
+model_directory <- sbert:::sbert_model_directory(cache_dir)
+dir.create(model_directory, recursive = TRUE)
+copied <- file.copy(
+  file.path(model_source, c("model.onnx", "tokenizer.json")),
+  model_directory
+)
+stopifnot(all(copied))
+```
+
+This document executes the official `all-MiniLM-L6-v2` model through native
+ONNX Runtime. Python is not installed, imported, or called by the R pipeline.
+
+## Load the verified model
+
+```{r model}
+model_status <- sbert_model_status(cache_dir)
+model_status[, c("file", "exists", "valid", "actual_bytes")]
+
+model <- sbert_load_model(cache_dir, backend = "cpu", threads = 1L)
+model
+```
+
+## Encode sentences
+
+```{r encode}
+sentences <- c(
+  "A student is reading a research paper.",
+  "A learner studies an academic article.",
+  "The bicycle is parked beside the building.",
+  "A bike stands next to a structure."
+)
+
+embedding_matrix <- sbert_encode(sentences, model, batch_size = 2L)
+str(embedding_matrix)
+dim(embedding_matrix)
+summary(as.numeric(embedding_matrix))
+rowSums(embedding_matrix^2)
+anyNA(embedding_matrix)
+```
+
+Each sentence becomes one 384-dimensional, L2-normalized vector.
+
+## Cosine similarity
+
+```{r similarity}
+similarity_matrix <- sbert_similarity(embedding_matrix)
+round(similarity_matrix, 3)
+
+within_topic_similarity <- mean(c(
+  similarity_matrix[1, 2],
+  similarity_matrix[3, 4]
+))
+between_topic_similarity <- mean(similarity_matrix[1:2, 3:4])
+
+data.frame(
+  comparison = c("Semantically related pairs", "Between-topic pairs"),
+  mean_cosine_similarity = c(
+    within_topic_similarity,
+    between_topic_similarity
+  )
+)
+```
+
+The semantically related pairs should be more similar than the cross-topic
+pairs. The test suite also compares every embedding value against the official
+SentenceTransformers reference with a maximum permitted absolute error of
+`1e-6`.

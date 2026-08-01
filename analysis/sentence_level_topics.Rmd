@@ -1,0 +1,263 @@
+---
+title: "Sentence-level topics in translated feedback"
+subtitle: "Six spherical sentence-embedding clusters defined by complete corpus sentences"
+output:
+  html_document:
+    self_contained: true
+    toc: true
+    toc_float: true
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = FALSE,
+  warning = FALSE,
+  message = FALSE,
+  fig.width = 10,
+  fig.height = 5,
+  dpi = 120
+)
+result_path <- file.path(
+  "outputs",
+  "feedback_translation_topics",
+  "sentence_level_topics",
+  "sentence_level_topic_model.rds"
+)
+stopifnot(file.exists(result_path))
+result <- readRDS(result_path)
+topic_summary <- result$topic_summary
+representatives <- result$representative_sentences
+assignments <- result$sentence_assignments
+stopifnot(
+  nrow(assignments) == 8987L,
+  sum(assignments$included) == 8976L,
+  nrow(topic_summary) == 6L,
+  nrow(representatives) == 30L,
+  nrow(result$boundary_sentences) == 18L
+)
+
+format_percent <- function(value, digits = 1L) {
+  stopifnot(is.numeric(value), is.numeric(digits), length(digits) == 1L)
+  sprintf(paste0("%.", digits, "f%%"), 100 * value)
+}
+```
+
+<style>
+body { font-size: 16px; color: #1f2937; }
+.verdict { padding: 18px 22px; border-left: 6px solid #0f766e; background: #f0fdfa; margin: 18px 0 26px; }
+.cards { display: flex; flex-wrap: wrap; gap: 14px; margin: 18px 0 26px; }
+.card { flex: 1 1 180px; padding: 15px 18px; border: 1px solid #d1d5db; border-radius: 8px; background: #f8fafc; }
+.topic-card { padding: 18px 22px; border: 1px solid #cbd5e1; border-radius: 9px; margin: 16px 0; background: #ffffff; }
+.topic-card h3 { color: #0f4c5c; margin-top: 0; }
+.number { font-size: 28px; font-weight: 700; color: #0f4c5c; }
+.label { color: #475569; }
+.warning { padding: 12px 16px; background: #fffbeb; border-left: 5px solid #d97706; }
+.prototype { padding: 10px 14px; background: #f1f5f9; font-style: italic; }
+table { font-size: 14px; }
+</style>
+
+## Result
+
+<div class="verdict">
+The revised model is sentence-level end to end. It clusters complete MiniLM
+sentence embeddings with 50 cosine-aware spherical k-means restarts. Every
+automatic topic label is an exact sentence from the corpus, and each topic is
+shown through diverse complete representative sentences. Ordinary word and
+phrase frequencies appear only in a separate audit appendix.
+</div>
+
+```{r cards, results='asis'}
+cat(sprintf(
+  paste0(
+    '<div class="cards">',
+    '<div class="card"><div class="number">8,976</div><div class="label">modeled rows</div></div>',
+    '<div class="card"><div class="number">8,144</div><div class="label">distinct sentences</div></div>',
+    '<div class="card"><div class="number">6</div><div class="label">sentence topics</div></div>',
+    '<div class="card"><div class="number">%s</div><div class="label">largest topic</div></div>',
+    '</div>'
+  ),
+  format_percent(max(topic_summary$proportion))
+))
+```
+
+<div class="warning">
+The concise intent titles are provisional analyst interpretations. The exact
+canonical corpus sentences are the automatic labels. Sixty-three distinct
+language-review sentences were held out while fitting centroids and assigned
+provisionally afterward; ambiguous boundary cases remain in the review queue.
+</div>
+
+## Six sentence-defined topics
+
+```{r topic-cards, results='asis'}
+topic_card_html <- vapply(
+  seq_len(nrow(topic_summary)),
+  function(topic_row) {
+    topic_id <- topic_summary$topic[[topic_row]]
+    topic_representatives <- representatives[
+      representatives$topic == topic_id,
+      ,
+      drop = FALSE
+    ]
+    representative_items <- paste0(
+      "<li>",
+      htmltools::htmlEscape(topic_representatives$representative_sentence),
+      "</li>",
+      collapse = ""
+    )
+    sprintf(
+      paste0(
+        '<div class="topic-card">',
+        '<h3>Topic %d — %s</h3>',
+        '<p><strong>%s rows (%s)</strong> · %s distinct sentences</p>',
+        '<div class="prototype">Canonical sentence: %s</div>',
+        '<p><strong>Diverse full-sentence representatives</strong></p><ol>%s</ol>',
+        '</div>'
+      ),
+      topic_id,
+      htmltools::htmlEscape(topic_summary$intent_title[[topic_row]]),
+      format(topic_summary$n_rows[[topic_row]], big.mark = ","),
+      format_percent(topic_summary$proportion[[topic_row]]),
+      format(topic_summary$n_unique_sentences[[topic_row]], big.mark = ","),
+      htmltools::htmlEscape(topic_summary$canonical_sentence[[topic_row]]),
+      representative_items
+    )
+  },
+  character(1)
+)
+cat(paste(topic_card_html, collapse = "\n"))
+```
+
+## Topic sizes and cohesion
+
+```{r size-plot}
+topic_order <- order(topic_summary$n_rows)
+barplot(
+  topic_summary$n_rows[topic_order],
+  names.arg = paste0(
+    "T",
+    topic_summary$topic[topic_order],
+    ": ",
+    topic_summary$intent_title[topic_order]
+  ),
+  horiz = TRUE,
+  las = 1,
+  col = "#0f766e",
+  border = NA,
+  xlab = "Number of rows",
+  main = "Balanced six-topic sentence solution"
+)
+```
+
+```{r summary-table}
+summary_display <- topic_summary[
+  , c(
+    "topic", "intent_title", "n_rows", "proportion",
+    "n_unique_sentences", "mean_cosine_distance", "p90_cosine_distance",
+    "assigned_rows", "ambiguous_rows", "translation_review_rows",
+    "canonical_sentence"
+  )
+]
+summary_display$proportion <- format_percent(summary_display$proportion)
+summary_display$mean_cosine_distance <- sprintf(
+  "%.3f",
+  summary_display$mean_cosine_distance
+)
+summary_display$p90_cosine_distance <- sprintf(
+  "%.3f",
+  summary_display$p90_cosine_distance
+)
+knitr::kable(summary_display, row.names = FALSE)
+```
+
+Cosine distance is not a probability. Smaller values indicate proximity to the
+topic centroid. Assignment margin is the selected-centroid similarity minus the
+second-best similarity; smaller margins indicate less certain boundaries.
+
+## Boundary sentences
+
+These are the three lowest-margin eligible sentences per topic. They expose
+where the six-topic constraint is least convincing.
+
+```{r boundary-table}
+boundary_display <- result$boundary_sentences[
+  , c(
+    "topic", "intent_title", "rank", "boundary_sentence",
+    "cosine_distance_to_centroid", "assignment_margin"
+  )
+]
+boundary_display$cosine_distance_to_centroid <- sprintf(
+  "%.3f",
+  boundary_display$cosine_distance_to_centroid
+)
+boundary_display$assignment_margin <- sprintf(
+  "%.4f",
+  boundary_display$assignment_margin
+)
+knitr::kable(boundary_display, row.names = FALSE)
+```
+
+## Frequent language patterns — secondary only
+
+The following unigrams, bigrams, and trigrams are ordinary within-topic counts.
+They were not used for sentence assignment, centroid fitting, automatic labels,
+or intent titles.
+
+```{r ngram-table}
+knitr::kable(result$frequent_ngrams, row.names = FALSE)
+```
+
+## Review queue
+
+The queue contains 892 lowest-margin assignments, 63 language-review rows, and
+11 excluded blanks. The first 250 rows are displayed; the complete queue is in
+the exported CSV.
+
+```{r review-table}
+review_display <- utils::head(
+  result$review_queue[
+    , c(
+      "row_id", "translation", "topic", "intent_title",
+      "assignment_margin", "assignment_status"
+    )
+  ],
+  250L
+)
+review_display$assignment_margin <- sprintf(
+  "%.4f",
+  review_display$assignment_margin
+)
+knitr::kable(review_display, row.names = FALSE)
+```
+
+## Restart diagnostics
+
+The selected restart maximized total assigned cosine similarity across the
+8,081 language-screened distinct sentences.
+
+```{r restart-plot}
+diagnostics <- result$restart_diagnostics
+plot(
+  diagnostics$seed,
+  diagnostics$objective,
+  type = "h",
+  lwd = 3,
+  col = ifelse(diagnostics$selected, "#dc2626", "#94a3b8"),
+  xlab = "Restart seed",
+  ylab = "Total cosine objective",
+  main = "Fifty spherical k-means restarts"
+)
+points(
+  diagnostics$seed[diagnostics$selected],
+  diagnostics$objective[diagnostics$selected],
+  pch = 19,
+  col = "#dc2626"
+)
+```
+
+## Method
+
+```{r method-table}
+knitr::kable(result$method, row.names = FALSE)
+```

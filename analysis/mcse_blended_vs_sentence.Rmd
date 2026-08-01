@@ -1,0 +1,196 @@
+---
+title: "Put Together: Blended vs Pure Sentence Topics, Matched Pair by Pair"
+author: "sbert 0.4.0"
+date: "`r format(Sys.Date())`"
+output:
+  html_document:
+    toc: true
+    toc_depth: 1
+    theme: cosmo
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+suppressMessages(devtools::load_all("..", quiet = TRUE))
+mcse_path <- file.path(
+  "/Users/mohammedsaqr/Library/CloudStorage/GoogleDrive-saqr@saqr.me",
+  "Other computers/My MacBook Pro (1)/AKA/Networks_CSE/MCSE_gold.RDS"
+)
+```
+
+# What this page is
+
+The blended vignette and the sentence vignette each show thirty topics —
+but they are two *different* sets of thirty, so their topic numbers cannot
+be compared across pages. This page puts them together properly: both
+models are fitted here on the **identical** 99,765 sentences, from the
+**identical** sentence encodings — the only difference between them is
+whether each sentence's vector was blended with its abstract
+(`sbert_blend()`, `alpha = 0.5`) or used as is. Every blended topic is
+then matched to the pure-sentence topic it shares the most sentences
+with, and the pairs are shown side by side: same label style, same
+margin-ranked verbatim statements.
+
+How to read a pair: the *shared* percentage says how much the two views
+agree that these sentences belong together. High-share pairs are the same
+topic seen twice — context changed nothing. Low-share pairs are where the
+two designs genuinely disagree: the pure model grouped sentences that
+*sound alike*, the blended model grouped sentences whose *papers are
+about the same thing*.
+
+# One corpus, two spaces
+
+```{r data}
+mcse <- readRDS(mcse_path)
+usable <- subset(mcse, !is.na(AB) & !startsWith(trimws(AB), "[NO ABSTRACT"))
+abstracts <- unique(trimws(usable$AB))
+sentences <- sbert_segment(abstracts, level = "sentence", merge_below = 5)
+nrow(sentences)
+```
+
+Both spaces are built from one pass of encodings, so the blend is the
+only moving part:
+
+```{r embeddings}
+qa_minilm <- sbert_load_model("multi-qa-MiniLM-L6-cos-v1", threads = 8L)
+sentence_embeddings <- sbert_encode(sentences$text, model = qa_minilm)
+abstract_embeddings <- sbert_encode(abstracts, model = qa_minilm)
+blended_embeddings <- sbert_blend(
+  sentences,
+  embeddings = sentence_embeddings,
+  document_embeddings = abstract_embeddings,
+  alpha = 0.5
+)
+```
+
+# Two thirty-topic models
+
+```{r models}
+sentence_model <- sbert_topics(
+  sentences$text,
+  n_topics = 30,
+  embeddings = sentence_embeddings,
+  n_terms = 8,
+  n_representatives = 3
+)
+blended_model <- sbert_topics(
+  sentences$text,
+  n_topics = 30,
+  embeddings = blended_embeddings,
+  n_terms = 8,
+  n_representatives = 3
+)
+```
+
+## Which space makes more coherent topics?
+
+The single number to compare across the two tables is the mean NPMI: it
+answers whether blending in document context produced topics whose top
+words genuinely co-occur — the empirical verdict on the design.
+
+```{r coherence}
+sentence_coherence <- sbert_coherence(sentence_model, measure = "npmi")
+blended_coherence <- sbert_coherence(blended_model, measure = "npmi")
+mean(sentence_coherence$coherence)
+mean(blended_coherence$coherence)
+```
+
+```{r evidence}
+sentence_evidence <- sbert_representatives(
+  sentence_model,
+  sentences$text,
+  embeddings = sentence_embeddings
+)
+blended_evidence <- sbert_representatives(
+  blended_model,
+  sentences$text,
+  embeddings = blended_embeddings
+)
+```
+
+# The pairing
+
+Each blended topic is matched to the pure-sentence topic containing the
+largest number of its sentences; `share` is the fraction of the blended
+topic's sentences that the matched topic holds.
+
+```{r align-helper, include=FALSE}
+align_topics <- function(from_model, to_model) {
+  overlap <- table(from_model$documents$topic, to_model$documents$topic)
+  best <- apply(overlap, 1L, which.max)
+  shared <- as.integer(overlap[cbind(seq_len(nrow(overlap)), best)])
+  data.frame(
+    blended_topic = as.integer(rownames(overlap)),
+    sentence_topic = as.integer(colnames(overlap))[best],
+    shared_sentences = shared,
+    share = round(shared / as.numeric(rowSums(overlap)), 3),
+    stringsAsFactors = FALSE
+  )
+}
+```
+
+```{r align}
+pairing <- align_topics(blended_model, sentence_model)
+pairing
+```
+
+# The pairs, side by side
+
+```{r pair-helper, include=FALSE}
+show_side <- function(model, evidence, topic_id, heading) {
+  topic_row <- subset(model$topics, topic == topic_id)
+  statements <- subset(evidence, topic == topic_id)
+  cat(sprintf(
+    "**%s — %s** (%d sentences)\n\n",
+    heading,
+    topic_row$label,
+    topic_row$n_documents
+  ))
+  cat(sprintf(
+    "> %s *(%.3f)*\n\n",
+    statements$text,
+    statements$distance
+  ), sep = "")
+}
+```
+
+```{r pairs, echo=FALSE, results="asis"}
+invisible(lapply(
+  seq_len(nrow(pairing)),
+  function(pair_index) {
+    pair <- subset(pairing, blended_topic == pair_index)
+    cat(sprintf(
+      "# Pair %d — %.0f%% shared\n\n",
+      pair_index,
+      100 * pair$share
+    ))
+    show_side(
+      blended_model,
+      blended_evidence,
+      pair$blended_topic,
+      "Blended (sentence + its abstract)"
+    )
+    show_side(
+      sentence_model,
+      sentence_evidence,
+      pair$sentence_topic,
+      "Pure sentence"
+    )
+  }
+))
+```
+
+# What to conclude
+
+Where a pair shares most of its sentences, context made no difference —
+those topics are robust to the design choice, which is itself worth
+knowing. Where the share is low, read the two statement sets against each
+other: if the blended side reads like a research area and the pure side
+like a rhetorical move ("we surveyed...", "results show..."), the blend
+is doing what it was built to do — letting each sentence borrow the
+subject of its paper. The mean NPMI above says which behavior dominates
+on this corpus.
+
+```{r session, echo=FALSE}
+sessionInfo()$R.version$version.string
+```
