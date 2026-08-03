@@ -1,7 +1,7 @@
 # sbert
 
 `sbert` computes genuine Sentence-BERT embeddings in R without Python.
-Thirteen models are supported, each pinned to an immutable revision and
+Fourteen models are supported, each pinned to an immutable revision and
 verified by SHA-256 (`models()` lists them): the classic
 `sentence-transformers` family (`all-MiniLM-L6-v2` — the default —
 `all-MiniLM-L12-v2`, `paraphrase-MiniLM-L3-v2`, `multi-qa-MiniLM-L6-cos-v1`,
@@ -55,8 +55,37 @@ topic_model$terms
 topic_model$representatives
 ```
 
+Pass a data frame instead and name the text column: every other column rides
+along into `$documents`, and rows whose text is missing, blank, or a
+bibliographic placeholder are dropped once rather than by you.
+
+```r
+topic_model <- topics(articles, column = "abstract", n_topics = 40)
+```
+
+There is no correct topic count, so choose it from a table rather than by
+habit. `select_topics()` keeps every model it fits, and `fitted()` takes the
+one you want without refitting:
+
+```r
+sweep <- select_topics(text, n_topics = c(10, 20, 30, 40), embeddings = embeddings)
+sweep                                    # coherence, diversity, explained
+plot(sweep)
+
+topic_model <- fitted(sweep, n_topics = 30)
+```
+
+Topic terms depend only on the fitted assignments and the text, so every term
+setting can be retuned without repeating the clustering or the encoding:
+
+```r
+terms(topic_model, n = 12)                       # distinctive terms (c-TF-IDF)
+terms(topic_model, n = 12, sort_by = "beta")     # the words a topic uses most
+terms(topic_model, n = 12, weighting = "bm25", stem = TRUE)
+```
+
 Fitted topic models support a full inferential layer — assignment of new
-documents, soft topic_membership, generative word probabilities, and mixed-topic
+documents, soft membership, generative word probabilities, and mixed-topic
 document distributions:
 
 ```r
@@ -92,12 +121,12 @@ call:
 
 ```r
 coherence(topic_model, measure = "npmi")  # per-topic UMass / NPMI coherence
-topic_diversity(topic_model)                     # distinct-vocabulary proportion
-summary(topic_model)                             # scientific report + quality table
+topic_diversity(topic_model)              # distinct-vocabulary proportion
+summary(topic_model)                      # scientific report + quality table
 
-plot(topic_model, type = "sizes")                # documents per topic
-plot(topic_model, type = "terms")                # top class-based TF-IDF terms
-plot(topic_model, type = "map")                  # classical-MDS document map
+plot(topic_model, type = "sizes")         # documents per topic
+plot(topic_model, type = "terms")         # top class-based TF-IDF terms
+plot(topic_model, type = "map")           # classical-MDS document map
 ```
 
 Term weighting supports the class-based TF-IDF, BM25 (`weighting = "bm25"`), and
@@ -130,15 +159,15 @@ topics(
 )
 ```
 
-Around the topic model, four utilities cover the everyday analysis moves:
+Around the topic model, a few utilities cover the everyday analysis moves:
 
 ```r
-keywords(text, n = 5)                        # embedding-ranked keywords (MMR)
-stop_words(add = c("students", "learning"))   # exclude corpus vocabulary
+keywords(text, n = 5)                                 # embedding-ranked keywords (MMR)
+stop_words(add = c("students", "learning"))           # exclude corpus vocabulary
 select_topics(text, n_topics = c(10, 20, 30), embeddings = embeddings)
-topic_hierarchy <- topic_hierarchy(topic_model)          # which topics are neighbors?
-plot(topic_hierarchy)                                    # labeled dendrogram
-smaller <- reduce_topics(topic_model, 12)           # merge down, keep all verbs
+tree <- topic_hierarchy(topic_model)                  # which topics are neighbours?
+plot(tree)                                            # labeled dendrogram
+smaller <- reduce_topics(topic_model, n_topics = 12)  # merge down, keep all verbs
 ```
 
 Documents can be split into sentences, clauses, or phrases before embedding,
@@ -182,9 +211,19 @@ Model downloads range from 69 MB (`paraphrase-MiniLM-L3-v2`) to 1.1 GB
 platform-specific path returned by `cache_dir()`. Every artifact is
 verified by byte size and SHA-256 before it is used.
 
+## Tutorial
+
+A full worked tutorial ships with the package and runs offline on the
+bundled `feedback_translations` data — choosing a topic count, reading the
+topics, checking quality, and merging down the topic tree:
+
+```r
+vignette("topic-modeling", package = "sbert")
+```
+
 ## Supported scope
 
-- Models: thirteen pinned models (see `models()`), classic and modern,
+- Models: fourteen pinned models (see `models()`), classic and modern,
   English and multilingual, 384 to 1,024 dimensions, 128 to 8,192 tokens,
   69 MB to 1.3 GB
 - Pooling: attention-mask-aware mean pooling or CLS pooling, per model
@@ -199,9 +238,9 @@ verified by byte size and SHA-256 before it is used.
   abbreviation gazetteer and decimal/parenthetical guards
 - Topic discovery: deterministic k-means with farthest-point initialization
 - Topic descriptions: representative documents and BERTopic-style c-TF-IDF
-- Topic inference: `predict()` for new documents, fuzzy soft topic_membership,
+- Topic inference: `predict()` for new documents, fuzzy soft membership,
   generative `beta`, and segment-based document-topic `gamma`
-- Topic evaluation: intrinsic UMass and NPMI coherence, and topic topic_diversity
+- Topic evaluation: intrinsic UMass and NPMI coherence, and topic diversity
 - Topic visualization: deterministic base-graphics size, term, and MDS map views
 - Backends: those exposed by `onnxr`, with CPU as the portable default
 

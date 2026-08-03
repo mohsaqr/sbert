@@ -1,3 +1,14 @@
+# sbert 0.5.2
+
+- README updated for the 0.5 API: data-frame input to `topics()`, the
+  retained-model sweep with `fitted()`, and `terms()` retuning without a
+  refit. Adds a pointer to the tutorial vignette.
+- Repaired README prose damaged by the 0.5.0 rename, where the English words
+  "membership" and "diversity" had been rewritten as function names.
+- Corrected the model count in the README from thirteen to fourteen.
+- Named the `n_topics` argument in the README's `reduce_topics()` example, and
+  stopped shadowing `topic_hierarchy()` with a variable of the same name.
+
 # sbert 0.5.1
 
 - `R CMD check --as-cran` is clean: 0 errors, 0 warnings, 0 notes.

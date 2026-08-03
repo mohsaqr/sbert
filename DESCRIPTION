@@ -1,7 +1,7 @@
 Package: sbert
 Type: Package
 Title: Sentence Embeddings with 'Sentence-BERT' Models
-Version: 0.5.1
+Version: 0.5.2
 Authors@R: person(
     given = "Mohammed",
     family = "Saqr",
