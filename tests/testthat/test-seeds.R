@@ -24,7 +24,7 @@ finance_first_seed_embeddings <- function() {
 }
 
 testthat::test_that("seeded topics keep seed order and take seed names", {
-  model <- sbert_topics(
+  model <- topics(
     seed_test_corpus(),
     n_topics = 2,
     embeddings = seed_test_embeddings(),
@@ -42,7 +42,7 @@ testthat::test_that("seeded topics keep seed order and take seed names", {
 })
 
 testthat::test_that("free topics join the seeded ones", {
-  model <- sbert_topics(
+  model <- topics(
     seed_test_corpus(),
     n_topics = 2,
     embeddings = seed_test_embeddings(),
@@ -58,7 +58,7 @@ testthat::test_that("free topics join the seeded ones", {
 
 testthat::test_that("fixed seeds freeze the centroids", {
   seeds <- finance_first_seeds()
-  model <- sbert_topics(
+  model <- topics(
     seed_test_corpus(),
     n_topics = 2,
     embeddings = seed_test_embeddings(),
@@ -78,7 +78,7 @@ testthat::test_that("fixed seeds freeze the centroids", {
 })
 
 testthat::test_that("fixed seeds allow empty topics", {
-  model <- sbert_topics(
+  model <- topics(
     seed_test_corpus(),
     n_topics = 3,
     embeddings = seed_test_embeddings(),
@@ -97,7 +97,7 @@ testthat::test_that("fixed seeds allow empty topics", {
 })
 
 testthat::test_that("seed lists collapse to phrases and runs are deterministic", {
-  as_list <- sbert_topics(
+  as_list <- topics(
     seed_test_corpus(),
     n_topics = 2,
     embeddings = seed_test_embeddings(),
@@ -110,7 +110,7 @@ testthat::test_that("seed lists collapse to phrases and runs are deterministic",
     as_list$settings$seeds,
     c("stocks markets trading", "cats")
   )
-  again <- sbert_topics(
+  again <- topics(
     seed_test_corpus(),
     n_topics = 2,
     embeddings = seed_test_embeddings(),
@@ -126,7 +126,7 @@ testthat::test_that("invalid seed configurations are rejected", {
   corpus <- seed_test_corpus()
   embeddings <- seed_test_embeddings()
   testthat::expect_error(
-    sbert_topics(
+    topics(
       corpus, 2,
       embeddings = embeddings,
       seeds = c("a", "b", "c"),
@@ -135,7 +135,7 @@ testthat::test_that("invalid seed configurations are rejected", {
     "More seeds than topics"
   )
   testthat::expect_error(
-    sbert_topics(
+    topics(
       corpus, 3,
       embeddings = embeddings,
       seeds = c("a", "b"),
@@ -145,7 +145,7 @@ testthat::test_that("invalid seed configurations are rejected", {
     "must equal"
   )
   testthat::expect_error(
-    sbert_topics(
+    topics(
       corpus, 2,
       embeddings = embeddings,
       seeds = c("finance seed")
@@ -153,7 +153,7 @@ testthat::test_that("invalid seed configurations are rejected", {
     "seed_embeddings"
   )
   testthat::expect_error(
-    sbert_topics(
+    topics(
       corpus, 2,
       embeddings = embeddings,
       seeds = c(""),
@@ -161,7 +161,7 @@ testthat::test_that("invalid seed configurations are rejected", {
     )
   )
   testthat::expect_error(
-    sbert_topics(
+    topics(
       corpus, 2,
       embeddings = embeddings,
       seeds = c("finance"),

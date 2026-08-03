@@ -113,7 +113,7 @@ stopifnot(
   all(analysis_data$translation_duplicate_count >= 1L)
 )
 
-model <- sbert_load_model(model_cache, threads = 2L)
+model <- load_model(model_cache, threads = 2L)
 if (reuse_analysis_cache && file.exists(embedding_path)) {
   embedding_cache <- readRDS(embedding_path)
   str(embedding_cache, max.level = 1L)
@@ -127,7 +127,7 @@ if (reuse_analysis_cache && file.exists(embedding_path)) {
   embedding_seconds <- embedding_cache$embedding_seconds
 } else {
   embedding_time <- system.time(
-    unique_embeddings <- sbert_encode(
+    unique_embeddings <- encode(
       unique_translation,
       model,
       batch_size = 64L,
@@ -246,7 +246,7 @@ stopifnot(
 write.csv(topic_count_diagnostics, diagnostic_path, row.names = FALSE)
 
 topic_model_time <- system.time(
-  topic_model <- sbert_topics(
+  topic_model <- topics(
     analysis_data$translation_clean,
     n_topics = selected_topic_count,
     embeddings = analysis_embeddings,

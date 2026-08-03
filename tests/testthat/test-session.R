@@ -8,8 +8,8 @@ testthat::test_that("names load lazily once and stay in the session cache", {
   loads <- new.env(parent = emptyenv())
   loads$count <- 0L
   testthat::local_mocked_bindings(
-    sbert_model_status = function(cache_dir, model) data.frame(valid = TRUE),
-    sbert_load_model = function(model, cache_dir) {
+    model_status = function(cache_dir, model) data.frame(valid = TRUE),
+    load_model = function(model, cache_dir) {
       loads$count <- loads$count + 1L
       fake_sbert_model()
     },
@@ -33,14 +33,14 @@ testthat::test_that("missing models never download without an explicit yes", {
   downloads <- new.env(parent = emptyenv())
   downloads$count <- 0L
   testthat::local_mocked_bindings(
-    sbert_model_status = function(cache_dir, model) {
+    model_status = function(cache_dir, model) {
       data.frame(valid = downloads$count > 0L)
     },
-    sbert_model_download = function(model, cache_dir, quiet = TRUE) {
+    model_download = function(model, cache_dir, quiet = TRUE) {
       downloads$count <- downloads$count + 1L
       invisible(cache_dir)
     },
-    sbert_load_model = function(model, cache_dir) fake_sbert_model(),
+    load_model = function(model, cache_dir) fake_sbert_model(),
     .package = "sbert"
   )
 
@@ -48,7 +48,7 @@ testthat::test_that("missing models never download without an explicit yes", {
   withr::local_options(sbert.download = NULL)
   testthat::expect_error(
     sbert:::resolve_sbert_model("all-MiniLM-L6-v2"),
-    "sbert_model_download"
+    "model_download"
   )
   testthat::expect_identical(downloads$count, 0L)
 

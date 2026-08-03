@@ -24,7 +24,7 @@ academic_filler <- c("paper","papers","article","articles","study","studies",
  "concept","concepts","method","methods","methodology","also","however",
  "different","various")
 domain_ubiquitous <- c("students","student","programming","program","programs")
-stop_words <- unique(c(sbert_stopwords(), search_keywords, academic_filler, domain_ubiquitous))
+stop_words <- unique(c(stop_words(), search_keywords, academic_filler, domain_ubiquitous))
 
 ts <- sbert:::topic_term_scores(
   text = model$documents$text, topic = model$documents$topic,

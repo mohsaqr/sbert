@@ -84,9 +84,9 @@ prepare_sbert_inputs <- function(
 #' @examples
 #' hidden <- array(1:12, dim = c(2, 3, 2))
 #' mask <- matrix(c(1, 1, 0, 1, 0, 0), nrow = 2, byrow = TRUE)
-#' sbert_pool(hidden, mask)
-#' sbert_pool(hidden, mask, method = "cls")
-sbert_pool <- function(
+#' pool(hidden, mask)
+#' pool(hidden, mask, method = "cls")
+pool <- function(
   token_embeddings,
   attention_mask,
   normalize = TRUE,
@@ -180,7 +180,7 @@ encode_sbert_batch <- function(model, text, normalize) {
     stop("The ONNX model did not return 'last_hidden_state'.", call. = FALSE)
   }
 
-  sbert_pool(
+  pool(
     token_embeddings,
     inputs$attention_mask,
     normalize = normalize,
@@ -220,8 +220,8 @@ run_sbert_onnx <- function(onnx_model, inputs, token_type_ids = TRUE) {
 #'
 #' @param text Character vector of sentences. Empty strings are supported;
 #'   missing values are rejected.
-#' @param model A loaded [sbert_model][sbert_load_model()], the name of a
-#'   pinned model from [sbert_models()], or `NULL` for the default
+#' @param model A loaded [sbert_model][load_model()], the name of a
+#'   pinned model from [models()], or `NULL` for the default
 #'   `all-MiniLM-L6-v2`. Names are loaded lazily and kept in a session
 #'   cache; the first use of a not-yet-installed model offers a one-time
 #'   verified download (interactive prompt, or
@@ -235,9 +235,9 @@ run_sbert_onnx <- function(onnx_model, inputs, token_type_ids = TRUE) {
 #'   embedding dimension of the loaded model.
 #' @export
 #' @examplesIf interactive()
-#' model <- sbert_load_model()
-#' embeddings <- sbert_encode(c("A short sentence.", "Another sentence."), model)
-sbert_encode <- function(
+#' model <- load_model()
+#' embeddings <- encode(c("A short sentence.", "Another sentence."), model)
+encode <- function(
   text,
   model = NULL,
   batch_size = 32L,

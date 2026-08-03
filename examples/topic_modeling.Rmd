@@ -73,9 +73,9 @@ anyDuplicated(topic_data$text)
 ## Fit the topic model
 
 ```{r fit}
-model <- sbert_load_model(cache_dir, backend = "cpu", threads = 1L)
+model <- load_model("all-MiniLM-L6-v2", cache_dir = cache_dir, backend = "cpu", threads = 1L)
 
-topic_model <- sbert_topics(
+topic_model <- topics(
   text = topic_data$text,
   n_topics = 3L,
   model = model,

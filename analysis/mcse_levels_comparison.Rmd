@@ -45,13 +45,13 @@ The trade-off each level makes:
 ```{r data}
 mcse <- readRDS(mcse_path)
 usable <- subset(mcse, !is.na(AB) & !startsWith(trimws(AB), "[NO ABSTRACT"))
-corpus <- sbert_dedupe(paste(trimws(usable$TI), trimws(usable$AB), sep = " — "))
+corpus <- dedupe(paste(trimws(usable$TI), trimws(usable$AB), sep = " — "))
 ```
 
 ```{r model}
-qa_minilm <- sbert_load_model("multi-qa-MiniLM-L6-cos-v1", threads = 8L)
-embeddings <- sbert_encode(corpus$text, model = qa_minilm)
-topic_model <- sbert_topics(
+qa_minilm <- load_model("multi-qa-MiniLM-L6-cos-v1", threads = 8L)
+embeddings <- encode(corpus$text, model = qa_minilm)
+topic_model <- topics(
   corpus$text,
   n_topics = 30,
   embeddings = embeddings,
@@ -64,25 +64,25 @@ Segmentation is the only line that changes:
 
 ```{r segment}
 abstracts <- unique(trimws(usable$AB))
-sentence_units <- sbert_segment(abstracts, level = "sentence", merge_below = 5)
-clause_units <- sbert_segment(abstracts, level = "clause", merge_below = 5)
-phrase_units <- sbert_segment(abstracts, level = "phrase", merge_below = 5)
+sentence_units <- segment(abstracts, level = "sentence", merge_below = 5)
+clause_units <- segment(abstracts, level = "clause", merge_below = 5)
+phrase_units <- segment(abstracts, level = "phrase", merge_below = 5)
 ```
 
 ```{r encode}
-sentence_embeddings <- sbert_encode(sentence_units$text, model = qa_minilm)
-clause_embeddings <- sbert_encode(clause_units$text, model = qa_minilm)
-phrase_embeddings <- sbert_encode(phrase_units$text, model = qa_minilm)
+sentence_embeddings <- encode(sentence_units$text, model = qa_minilm)
+clause_embeddings <- encode(clause_units$text, model = qa_minilm)
+phrase_embeddings <- encode(phrase_units$text, model = qa_minilm)
 ```
 
 ```{r representatives}
-evidence_sentence <- sbert_representatives(
+evidence_sentence <- representatives(
   topic_model, sentence_units$text, embeddings = sentence_embeddings
 )
-evidence_clause <- sbert_representatives(
+evidence_clause <- representatives(
   topic_model, clause_units$text, embeddings = clause_embeddings
 )
-evidence_phrase <- sbert_representatives(
+evidence_phrase <- representatives(
   topic_model, phrase_units$text, embeddings = phrase_embeddings
 )
 ```

@@ -20,7 +20,7 @@ n_sentences <- 6L
 ad <- cache$analysis_data
 emb <- cache$unique_embeddings[ad$embedding_id, , drop = FALSE]
 
-model <- sbert_topics(
+model <- topics(
   ad$translation_clean,
   n_topics = n_topics,
   embeddings = emb,
@@ -39,7 +39,7 @@ term_scores <- sbert:::topic_term_scores(
   topic = model$documents$topic,
   n_topics = n_topics,
   n_terms = n_show,
-  stopwords = sbert_stopwords(),
+  stopwords = stop_words(),
   min_term_frequency = 5L,
   min_token_length = 2L,
   weighting = "bm25",
@@ -49,7 +49,7 @@ term_scores <- sbert:::topic_term_scores(
 counts <- term_scores$counts
 scores <- term_scores$scores
 vocabulary <- colnames(counts)
-colours <- sbert_palette(n_topics)
+colours <- topic_palette(n_topics)
 
 top_terms <- function(values, weights, k) {
   present <- which(weights > 0)

@@ -1,3 +1,81 @@
+# sbert 0.5.0
+
+## Breaking: the `sbert_` prefix is gone
+
+Every exported function lost its prefix. The package has never been released,
+so the old names were removed outright rather than deprecated:
+
+`sbert_topics()` is now `topics()`, `sbert_encode()` `encode()`,
+`sbert_segment()` `segment()`, `sbert_blend()` `blend()`,
+`sbert_keywords()` `keywords()`, `sbert_dedupe()` `dedupe()`,
+`sbert_coherence()` `coherence()`, `sbert_select_topics()`
+`select_topics()`, `sbert_representatives()` `representatives()`,
+`sbert_load_model()` `load_model()`, `sbert_models()` `models()`, and so on
+for the cache and runtime verbs.
+
+Six names are qualified because the bare form collides with a package this
+audience is likely to have attached — `igraph`, `quanteda`, `purrr`:
+
+- `sbert_membership()` -> `topic_membership()`
+- `sbert_diversity()` -> `topic_diversity()`
+- `sbert_hierarchy()` -> `topic_hierarchy()`
+- `sbert_similarity()` -> `topic_similarity()`
+- `sbert_reduce()` -> `reduce_topics()`
+- `sbert_stopwords()` -> `stop_words()`
+
+Two are qualified because the bare form would mask base R:
+`sbert_gamma()` -> `topic_gamma()`, `sbert_palette()` -> `topic_palette()`.
+
+Class names keep the prefix (`sbert_topic_model`, `sbert_model`), so S3
+methods read `terms.sbert_topic_model()`.
+
+## New: `terms()` retunes without refitting
+
+Topic terms depend only on the fitted assignments and the document text, so
+every term setting can now be changed without repeating the clustering or the
+encoding:
+
+```r
+terms(fit, n = 12, weighting = "bm25", stem = TRUE)
+terms(fit, n = 8, sort_by = "beta")     # words a topic uses most
+terms(fit, n = 8)                        # words that distinguish it
+```
+
+`sort_by` chooses between the class-based weight (distinctive terms, the
+default) and raw `p(term | topic)`. `n` is applied after ordering. The
+returned frame carries `beta`, which absorbs the removed `sbert_beta()`.
+
+## Verbs take your data frame and keep what they compute
+
+- `topics()` accepts a data frame plus `column =` naming the text column.
+  Remaining columns ride along into `$documents`. Rows whose text is missing,
+  blank, or a `[NO ABSTRACT AVAILABLE]` placeholder are dropped once, and any
+  supplied `embeddings` are subset to match.
+- `keep_embeddings` now defaults to `TRUE`. `topic_membership()`,
+  `reduce_topics()` and `plot(type = "map")` previously failed on a freshly
+  fitted model and told the user to refit — which meant re-encoding.
+- `label` is carried into `$documents`, `$terms` and `$representatives`, so
+  joining it back by hand is never necessary.
+- `representatives(fit)` defaults to the fitted corpus and its stored
+  embeddings.
+
+## `select_topics()` keeps every model it fits
+
+The sweep no longer discards the models it built. `fitted(sweep, n_topics =)`
+returns one without refitting, and the result gains `print`, `plot` and
+`as.data.frame` methods while remaining a plain data frame with the same
+columns.
+
+## Other
+
+- New tutorial vignette, "Topic Modeling: A Tutorial", running end to end on
+  the bundled `feedback_translations` data with precomputed embeddings, so it
+  builds without any download.
+- Removed `sbert_beta()` (now the `beta` column of `terms()`).
+- Fixed two documentation blocks that could not run: an example passed a cache
+  directory where a model name belongs, and the README referenced an
+  unassigned `model` object.
+
 # sbert 0.4.0
 
 ## Static embeddings (instant-speed tier)

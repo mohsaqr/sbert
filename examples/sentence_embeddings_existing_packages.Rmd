@@ -50,7 +50,7 @@ knitr::kable(package_summary, caption = "Packages used by this report")
 ## What this example proves
 
 R can perform a complete sentence-embedding workflow locally: prepare text,
-produce one numeric vector per sentence, and calculate cosine similarity. The
+produce one numeric vector per sentence, and calculate cosine topic_similarity. The
 installed packages can do this with **Latent Semantic Analysis (LSA)**.
 
 This rendered run is **not Sentence-BERT**. Sentence-BERT requires a compatible
@@ -220,13 +220,13 @@ knitr::kable(
 )
 ```
 
-## Cosine similarity
+## Cosine topic_similarity
 
 After row normalization, the matrix product gives every pairwise cosine
-similarity. Values near 1 indicate vectors pointing in similar directions;
+topic_similarity. Values near 1 indicate vectors pointing in similar directions;
 values near 0 indicate little shared direction.
 
-```{r cosine-similarity}
+```{r cosine-topic_similarity}
 normalized_embedding_matrix <- embedding_matrix / embedding_row_norms
 similarity_matrix <- tcrossprod(normalized_embedding_matrix)
 
@@ -275,7 +275,7 @@ summary(as.vector(similarity_matrix))
 
 knitr::kable(
   round(similarity_matrix, 3),
-  caption = "Cosine similarity between LSA embeddings"
+  caption = "Cosine topic_similarity between LSA embeddings"
 )
 ```
 
@@ -287,8 +287,8 @@ verification_summary <- data.frame(
     "TF--IDF dimensions",
     "Embedding dimensions",
     "Similarity dimensions",
-    "Mean within-topic similarity",
-    "Mean between-topic similarity"
+    "Mean within-topic topic_similarity",
+    "Mean between-topic topic_similarity"
   ),
   result = c(
     as.character(anyNA(sentence_data)),
@@ -309,12 +309,12 @@ knitr::kable(verification_summary, caption = "Pipeline verification")
 
 The same-topic sentences are closer than the different-topic sentences in this
 deliberately small example. This verifies the mechanics of an embedding and
-similarity workflow using only packages already installed.
+topic_similarity workflow using only packages already installed.
 
 It does **not** establish equivalence with Sentence-BERT. LSA is fitted to the
 current corpus, largely ignores word order and context, and can connect words
 only through patterns present in that corpus. Sentence-BERT instead supplies
 pretrained, contextual sentence representations. Genuine Sentence-BERT output
 should replace `embedding_matrix` once a transformer runtime or authenticated
-embedding service is available; the cosine-similarity and verification steps
+embedding service is available; the cosine-topic_similarity and verification steps
 can remain the same.

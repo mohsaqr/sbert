@@ -43,11 +43,11 @@ guard keeps the fragments from degenerating into single words.
 
 | Component | Verb | Question it answers |
 |---|---|---|
-| Topic model | `sbert_topics()` | What recurring expressions exist, and how common are they? |
-| Evaluation | `sbert_coherence()`, `sbert_diversity()` | Which topics are trustworthy? |
-| Frequent keywords | `sbert_beta()` | What does each topic talk about most? |
+| Topic model | `topics()` | What recurring expressions exist, and how common are they? |
+| Evaluation | `coherence()`, `topic_diversity()` | Which topics are trustworthy? |
+| Frequent keywords | `terms(sort_by = "beta")` | What does each topic talk about most? |
 | Distinctive keywords | `topic_model$terms` | What does it talk about that others do not? |
-| Evidence | `sbert_representatives()` | Which training phrases define it? |
+| Evidence | `representatives()` | Which training phrases define it? |
 
 ```{r library, eval=FALSE}
 library(sbert)
@@ -65,12 +65,12 @@ noun phrases of a different register.
 ```{r data}
 mcse <- readRDS(mcse_path)
 usable <- subset(mcse, !is.na(AB) & !startsWith(trimws(AB), "[NO ABSTRACT"))
-phrases <- sbert_segment(
+phrases <- segment(
   unique(trimws(usable$AB)),
   level = "phrase",
   merge_below = 5
 )
-corpus <- sbert_dedupe(phrases$text)
+corpus <- dedupe(phrases$text)
 nrow(corpus)
 ```
 
@@ -84,8 +84,8 @@ three; encoding it is the expensive step, runs once on eight threads,
 and is bit-identical every time.
 
 ```{r embeddings}
-qa_minilm <- sbert_load_model("multi-qa-MiniLM-L6-cos-v1", threads = 8L)
-embeddings <- sbert_encode(corpus$text, model = qa_minilm)
+qa_minilm <- load_model("multi-qa-MiniLM-L6-cos-v1", threads = 8L)
+embeddings <- encode(corpus$text, model = qa_minilm)
 ```
 
 # The thirty-topic model
@@ -94,7 +94,7 @@ The model is fitted on the phrase embeddings themselves — thirty
 centroids in phrase space.
 
 ```{r model}
-topic_model <- sbert_topics(
+topic_model <- topics(
   corpus$text,
   n_topics = 30,
   embeddings = embeddings,
@@ -117,7 +117,7 @@ summary(topic_model)
 ```
 
 ```{r coherence}
-sbert_coherence(topic_model, measure = "npmi")
+coherence(topic_model, measure = "npmi")
 ```
 
 ## Size on two scales
@@ -134,12 +134,12 @@ plot(topic_model, type = "sizes")
 ```
 
 ```{r weighted}
-sbert_topic_sizes(topic_model, weights = corpus$n)
+topic_sizes(topic_model, weights = corpus$n)
 ```
 
 # Two keyword views, one topic
 
-`sbert_beta()` is the generative view — the words a topic uses most.
+`terms(sort_by = "beta")` is the generative view — the words a topic uses most.
 The class-based TF-IDF scores in `topic_model$terms` are the
 discriminative view — the words a topic owns. At phrase level the two
 views converge more than at any other level: a phrase is often little
@@ -149,7 +149,7 @@ embedding similarity that the vocabulary does not show — read its
 phrases.
 
 ```{r beta}
-beta <- sbert_beta(topic_model)
+beta <- terms(topic_model, n = NULL, sort_by = "beta")
 head(subset(beta, topic == 1), 8)
 ```
 
@@ -161,13 +161,13 @@ head(subset(topic_model$terms, topic == 1), 8)
 
 No second corpus and no second encoding: the candidates are exactly the
 units the model was fitted on, under the embeddings it was fitted with.
-`sbert_representatives()` ranks them by *distinctiveness margin* — the
+`representatives()` ranks them by *distinctiveness margin* — the
 gap between a phrase's own topic and the second-best — so the evidence
 is the expression that belongs to this topic and could belong to no
 other, not merely the one nearest a centroid.
 
 ```{r representatives}
-evidence <- sbert_representatives(
+evidence <- representatives(
   topic_model,
   corpus$text,
   embeddings = embeddings
@@ -182,7 +182,7 @@ topic centroid in parentheses. The phrases are the ground truth: the
 bars summarize, the phrases verify.
 
 ```{r panel-helper, include=FALSE}
-palette_colors <- sbert_palette(nrow(topic_model$topics))
+palette_colors <- topic_palette(nrow(topic_model$topics))
 
 draw_topic_panel <- function(model, beta, topic_id, color, path) {
   count_rows <- head(subset(beta, topic == topic_id), 8)
@@ -264,7 +264,7 @@ invisible(lapply(
 # Where to go from here
 
 `predict()` places any new phrase into this map without refitting;
-`sbert_membership()` grades phrases that sit between topics; and running
+`topic_membership()` grades phrases that sit between topics; and running
 `predict()` on the segmented phrases of a new abstract profiles that
 paper as a mixture over these expression topics. To compare this map
 against the sentence-level and paper-level views of the same literature,

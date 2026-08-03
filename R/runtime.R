@@ -9,8 +9,8 @@
 #' @return The result returned by [onnxr::onnx_install()], invisibly.
 #' @export
 #' @examplesIf interactive()
-#' sbert_install_runtime()
-sbert_install_runtime <- function(cuda = NULL) {
+#' install_runtime()
+install_runtime <- function(cuda = NULL) {
   stopifnot(
     is.null(cuda) ||
       (is.logical(cuda) && length(cuda) == 1L && !is.na(cuda))

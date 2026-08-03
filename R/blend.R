@@ -28,14 +28,14 @@
 #' two. A segment exactly collinear with its document falls back to the
 #' document vector.
 #'
-#' @param segments A data frame from [sbert_segment()] (or any data frame
+#' @param segments A data frame from [segment()] (or any data frame
 #'   with integer `document_id` and character `text` columns), one row per
 #'   segment.
 #' @param documents The character vector of documents that was segmented;
 #'   `segments$document_id` indexes into it. Required unless both embedding
 #'   matrices are supplied.
 #' @param model A loaded sbert model, a pinned model name, or `NULL` for the
-#'   session default (see [sbert_load_model()]). Ignored when embeddings are
+#'   session default (see [load_model()]). Ignored when embeddings are
 #'   supplied.
 #' @param alpha Blend weight in `[0, 1]` for the segment's
 #'   context-orthogonal residual. Default `0.5`.
@@ -47,20 +47,20 @@
 #' @param batch_size Number of texts encoded per model call when encoding is
 #'   needed. Default `32`.
 #' @return A numeric matrix with one L2-normalized row per segment, suitable
-#'   for the `embeddings` argument of [sbert_topics()],
-#'   [sbert_representatives()], and [predict.sbert_topic_model()].
+#'   for the `embeddings` argument of [topics()],
+#'   [representatives()], and [predict.sbert_topic_model()].
 #' @export
 #' @examples
-#' segments <- sbert_segment("The model works. It is fast.", level = "sentence")
+#' segments <- segment("The model works. It is fast.", level = "sentence")
 #' unit_vectors <- matrix(c(1, 0, 0.6, 0.8), nrow = 2, byrow = TRUE)
 #' document_vectors <- matrix(c(0, 1), nrow = 1)
-#' sbert_blend(
+#' blend(
 #'   segments,
 #'   alpha = 0.5,
 #'   embeddings = unit_vectors,
 #'   document_embeddings = document_vectors
 #' )
-sbert_blend <- function(
+blend <- function(
   segments,
   documents = NULL,
   model = NULL,
@@ -83,25 +83,25 @@ sbert_blend <- function(
   )
   if (is.null(embeddings) != is.null(document_embeddings)) {
     stop(
-      "sbert_blend: supply both 'embeddings' and 'document_embeddings', ",
+      "blend: supply both 'embeddings' and 'document_embeddings', ",
       "or neither."
     )
   }
   if (is.null(embeddings)) {
     if (is.null(documents)) {
       stop(
-        "sbert_blend: supply 'documents' (with an optional 'model') or ",
+        "blend: supply 'documents' (with an optional 'model') or ",
         "both 'embeddings' and 'document_embeddings'."
       )
     }
     stopifnot(is.character(documents), !anyNA(documents))
     model <- resolve_sbert_model(model)
-    embeddings <- sbert_encode(
+    embeddings <- encode(
       segments$text,
       model = model,
       batch_size = batch_size
     )
-    document_embeddings <- sbert_encode(
+    document_embeddings <- encode(
       documents,
       model = model,
       batch_size = batch_size

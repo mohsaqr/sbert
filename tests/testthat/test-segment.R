@@ -1,5 +1,5 @@
 segment_units <- function(text, level, ...) {
-  sbert_segment(text, level = level, ...)$text
+  segment(text, level = level, ...)$text
 }
 
 # ---- Gold cases: input, level, expected segments ---------------------------
@@ -147,7 +147,7 @@ testthat::test_that("normalization straightens curly quotes and spaces dashes", 
 })
 
 testthat::test_that("result is a tidy one-row-per-segment data frame", {
-  result <- sbert_segment(
+  result <- segment(
     c(a = "One sentence here. Another sentence there.", b = "A single unit."),
     level = "sentence"
   )
@@ -166,17 +166,17 @@ testthat::test_that("result is a tidy one-row-per-segment data frame", {
 })
 
 testthat::test_that("unnamed input yields empty document names", {
-  result <- sbert_segment("Only one unit.")
+  result <- segment("Only one unit.")
   testthat::expect_identical(result$document_name, "")
   testthat::expect_identical(result$document_id, 1L)
 })
 
 testthat::test_that("blank documents contribute no rows but keep numbering", {
-  result <- sbert_segment(c("", "   ", "A real unit."), level = "clause")
+  result <- segment(c("", "   ", "A real unit."), level = "clause")
   testthat::expect_identical(nrow(result), 1L)
   testthat::expect_identical(result$document_id, 3L)
 
-  empty <- sbert_segment("", level = "sentence")
+  empty <- segment("", level = "sentence")
   testthat::expect_identical(nrow(empty), 0L)
   testthat::expect_identical(
     names(empty),
@@ -251,7 +251,7 @@ testthat::test_that("ETC. ends sentences and never glues them", {
     segment_units("TESTS, GRADING, ETC., ARE ALL COVERED HERE.", "sentence"),
     "TESTS, GRADING, ETC., ARE ALL COVERED HERE."
   )
-  testthat::expect_false("ETC." %in% sbert_abbreviations())
+  testthat::expect_false("ETC." %in% abbreviations())
 })
 
 testthat::test_that("custom abbreviations extend the built-in guard", {
@@ -264,14 +264,14 @@ testthat::test_that("custom abbreviations extend the built-in guard", {
     segment_units(
       text,
       "sentence",
-      abbreviations = c(sbert_abbreviations(), "CIRCA.")
+      abbreviations = c(abbreviations(), "CIRCA.")
     ),
     c("THE CIRCA. 1900 SAMPLE IS OLD.", "IT STILL WORKS.")
   )
 })
 
-testthat::test_that("sbert_abbreviations returns the sorted gazetteer", {
-  gazetteer <- sbert_abbreviations()
+testthat::test_that("abbreviations returns the sorted gazetteer", {
+  gazetteer <- abbreviations()
   testthat::expect_type(gazetteer, "character")
   testthat::expect_identical(gazetteer, sort(unique(gazetteer)))
   testthat::expect_true(all(endsWith(gazetteer, ".")))
@@ -279,11 +279,11 @@ testthat::test_that("sbert_abbreviations returns the sorted gazetteer", {
 })
 
 testthat::test_that("invalid inputs are rejected", {
-  testthat::expect_error(sbert_segment(character(0)))
-  testthat::expect_error(sbert_segment(NA_character_))
-  testthat::expect_error(sbert_segment(42))
-  testthat::expect_error(sbert_segment("Fine text.", level = "paragraph"))
-  testthat::expect_error(sbert_segment("Fine text.", merge_below = -1))
-  testthat::expect_error(sbert_segment("Fine text.", merge_below = 1.5))
-  testthat::expect_error(sbert_segment("Fine text.", abbreviations = 1L))
+  testthat::expect_error(segment(character(0)))
+  testthat::expect_error(segment(NA_character_))
+  testthat::expect_error(segment(42))
+  testthat::expect_error(segment("Fine text.", level = "paragraph"))
+  testthat::expect_error(segment("Fine text.", merge_below = -1))
+  testthat::expect_error(segment("Fine text.", merge_below = 1.5))
+  testthat::expect_error(segment("Fine text.", abbreviations = 1L))
 })

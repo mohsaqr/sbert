@@ -4,8 +4,8 @@
 #'   user cache directory.
 #' @export
 #' @examples
-#' sbert_cache_dir()
-sbert_cache_dir <- function() {
+#' cache_dir()
+cache_dir <- function() {
   tools::R_user_dir("sbert", which = "cache")
 }
 
@@ -14,14 +14,14 @@ sbert_cache_dir <- function() {
 #' Reports whether each required artifact exists and passes its pinned byte-size
 #' and SHA-256 checks.
 #'
-#' @param cache_dir Cache root returned by [sbert_cache_dir()].
-#' @param model Name of a pinned model listed by [sbert_models()].
+#' @param cache_dir Cache root returned by [cache_dir()].
+#' @param model Name of a pinned model listed by [models()].
 #' @return A data frame with one row per required artifact.
 #' @export
 #' @examples
-#' sbert_model_status(tempdir())
-sbert_model_status <- function(
-  cache_dir = sbert_cache_dir(),
+#' model_status(tempdir())
+model_status <- function(
+  cache_dir = default_cache_dir(),
   model = "all-MiniLM-L6-v2"
 ) {
   stopifnot(
@@ -134,20 +134,20 @@ download_sbert_artifact <- function(
 #' Downloads the official ONNX graph and tokenizer of a pinned model only
 #' after this function is called. Files are locked to an immutable repository
 #' revision and checked against package-controlled SHA-256 values. See
-#' [sbert_models()] for the available models; the default remains
+#' [models()] for the available models; the default remains
 #' `all-MiniLM-L6-v2`.
 #'
-#' @param model Name of a pinned model listed by [sbert_models()].
-#' @param cache_dir Cache root returned by [sbert_cache_dir()].
+#' @param model Name of a pinned model listed by [models()].
+#' @param cache_dir Cache root returned by [cache_dir()].
 #' @param quiet Whether to suppress download progress.
 #' @param timeout Minimum download timeout in seconds.
 #' @return Invisibly, the model directory.
 #' @export
 #' @examplesIf interactive()
-#' sbert_model_download()
-sbert_model_download <- function(
+#' model_download()
+model_download <- function(
   model = "all-MiniLM-L6-v2",
-  cache_dir = sbert_cache_dir(),
+  cache_dir = default_cache_dir(),
   quiet = FALSE,
   timeout = 600
 ) {
@@ -214,13 +214,13 @@ sbert_model_download <- function(
 
 #' Measure the sbert Cache
 #'
-#' @param cache_dir Cache root returned by [sbert_cache_dir()].
+#' @param cache_dir Cache root returned by [cache_dir()].
 #' @return The total number of bytes currently used by regular files beneath
 #'   the cache root.
 #' @export
 #' @examples
-#' sbert_cache_size(tempdir())
-sbert_cache_size <- function(cache_dir = sbert_cache_dir()) {
+#' cache_size(tempdir())
+cache_size <- function(cache_dir = cache_dir()) {
   stopifnot(
     is.character(cache_dir),
     length(cache_dir) == 1L,
@@ -249,15 +249,15 @@ sbert_cache_size <- function(cache_dir = sbert_cache_dir()) {
 
 #' Remove an Installed Model from the Cache
 #'
-#' @param cache_dir Cache root returned by [sbert_cache_dir()].
-#' @param model Name of a pinned model listed by [sbert_models()].
+#' @param cache_dir Cache root returned by [cache_dir()].
+#' @param model Name of a pinned model listed by [models()].
 #' @return Invisibly, whether the model directory no longer exists.
 #' @export
 #' @examples
 #' cache <- file.path(tempdir(), "sbert-example-cache")
-#' sbert_model_remove(cache)
-sbert_model_remove <- function(
-  cache_dir = sbert_cache_dir(),
+#' model_remove(cache)
+model_remove <- function(
+  cache_dir = default_cache_dir(),
   model = "all-MiniLM-L6-v2"
 ) {
   stopifnot(

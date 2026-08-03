@@ -11,7 +11,7 @@ devtools::load_all(quiet = TRUE)
 source("analysis/segment_text.R")
 
 model <- readRDS("outputs/mcse_gold_topics/mcse_gold_topic_model.rds")
-sbert_model <- sbert_load_model("/private/tmp/sbert-package-download-test", threads = 2L)
+sbert_model <- load_model("/private/tmp/sbert-package-download-test", threads = 2L)
 labels <- model$topics$label
 n_topics <- length(labels)
 centroids <- model$centers / sqrt(rowSums(model$centers^2))
@@ -28,7 +28,7 @@ cat(sprintf("abstracts: %d   content sentences: %d   mean per abstract: %.1f\n",
             length(abstracts), length(sentences), length(sentences) / length(abstracts)))
 
 # ---- embed sentences and assign to nearest k-means centroid ----------------
-embeddings <- sbert_encode(sentences, sbert_model, batch_size = 128L, normalize = TRUE)
+embeddings <- encode(sentences, sbert_model, batch_size = 128L, normalize = TRUE)
 similarity <- embeddings %*% t(centroids)        # sentences x 29
 sentence_topic <- max.col(similarity, ties.method = "first")
 best_cosine <- similarity[cbind(seq_len(nrow(similarity)), sentence_topic)]

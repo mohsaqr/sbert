@@ -42,11 +42,11 @@ and the abstracts nearest its centroid.
 
 | Component | Verb | Question it answers |
 |---|---|---|
-| Topic model | `sbert_topics()` | What areas exist, and how big are they? |
-| Evaluation | `sbert_coherence()`, `sbert_diversity()` | Which topics are trustworthy? |
-| Frequent keywords | `sbert_beta()` | What does each area talk about most? |
+| Topic model | `topics()` | What areas exist, and how big are they? |
+| Evaluation | `coherence()`, `topic_diversity()` | Which topics are trustworthy? |
+| Frequent keywords | `terms(sort_by = "beta")` | What does each area talk about most? |
 | Distinctive keywords | `topic_model$terms` | What does it talk about that others do not? |
-| Evidence | `sbert_segment()` + `predict()` | Which real sentences support the label? |
+| Evidence | `segment()` + `predict()` | Which real sentences support the label? |
 
 ```{r library, eval=FALSE}
 library(sbert)
@@ -63,7 +63,7 @@ should vote once.
 ```{r data}
 mcse <- readRDS(mcse_path)
 usable <- subset(mcse, !is.na(AB) & !startsWith(trimws(AB), "[NO ABSTRACT"))
-corpus <- sbert_dedupe(paste(trimws(usable$TI), trimws(usable$AB), sep = " — "))
+corpus <- dedupe(paste(trimws(usable$TI), trimws(usable$AB), sep = " — "))
 nrow(corpus)
 ```
 
@@ -74,20 +74,20 @@ word pieces — fine for feedback messages, lossy for 139-word abstracts with
 titles attached. `multi-qa-MiniLM-L6-cos-v1` keeps the same speed and
 384-dimensional space but accepts 512 word pieces, which covers almost every
 title-plus-abstract in this corpus without truncation
-(`sbert_models()` lists the menu, including two 8,192-token models for even
+(`models()` lists the menu, including two 8,192-token models for even
 longer documents). Encoding 15,551 documents is real work, so the model is
 loaded once with eight threads; the run takes a few minutes and is
 bit-identical every time.
 
 ```{r embeddings}
-qa_minilm <- sbert_load_model("multi-qa-MiniLM-L6-cos-v1", threads = 8L)
-embeddings <- sbert_encode(corpus$text, model = qa_minilm)
+qa_minilm <- load_model("multi-qa-MiniLM-L6-cos-v1", threads = 8L)
+embeddings <- encode(corpus$text, model = qa_minilm)
 ```
 
 # The thirty-topic model
 
 ```{r model}
-topic_model <- sbert_topics(
+topic_model <- topics(
   corpus$text,
   n_topics = 30,
   embeddings = embeddings,
@@ -110,7 +110,7 @@ summary(topic_model)
 ```
 
 ```{r coherence}
-sbert_coherence(topic_model, measure = "npmi")
+coherence(topic_model, measure = "npmi")
 ```
 
 ## Size on two scales
@@ -126,12 +126,12 @@ plot(topic_model, type = "sizes")
 ```
 
 ```{r weighted}
-sbert_topic_sizes(topic_model, weights = corpus$n)
+topic_sizes(topic_model, weights = corpus$n)
 ```
 
 # Two keyword views, one topic
 
-`sbert_beta()` is the generative view — the words a topic uses most, which
+`terms(sort_by = "beta")` is the generative view — the words a topic uses most, which
 in a single-discipline corpus is dominated by the field's shared vocabulary
 ("students", "programming", "course"). The class-based TF-IDF scores in
 `topic_model$terms` are the discriminative view — the words a topic owns.
@@ -141,7 +141,7 @@ the topic belongs to computing education; only the TF-IDF terms tell you
 which part of it.
 
 ```{r beta}
-beta <- sbert_beta(topic_model)
+beta <- terms(topic_model, n = NULL, sort_by = "beta")
 head(subset(beta, topic == 1), 8)
 ```
 
@@ -154,10 +154,10 @@ head(subset(topic_model$terms, topic == 1), 8)
 A whole abstract is poor evidence for a topic label: it buries the one
 claim that matters under methods and boilerplate. The evidence should be
 single statements — and *which* statements matters as much as how they are
-cut. `sbert_segment()` splits every abstract at clause level (sentence ends
+cut. `segment()` splits every abstract at clause level (sentence ends
 plus colons, semicolons, and subordinating hinges), so structured-abstract
 headers ("CONTEXT:", "RESULTS:") stand apart and stacked clauses do not
-glue into paragraphs. `sbert_representatives()` then chooses each topic's
+glue into paragraphs. `representatives()` then chooses each topic's
 evidence by *distinctiveness margin* rather than raw closeness: the nearest
 unit to a centroid is systematically the longest one (centroids are
 averages of whole abstracts, and long units resemble whole abstracts),
@@ -166,9 +166,9 @@ second-best is the statement that is unambiguously about this topic and no
 other — naturally short and pointed.
 
 ```{r sentences}
-abstract_sentences <- sbert_segment(unique(trimws(usable$AB)), merge_below = 5)
-sentence_embeddings <- sbert_encode(abstract_sentences$text, model = qa_minilm)
-evidence <- sbert_representatives(
+abstract_sentences <- segment(unique(trimws(usable$AB)), merge_below = 5)
+sentence_embeddings <- encode(abstract_sentences$text, model = qa_minilm)
+evidence <- representatives(
   topic_model,
   abstract_sentences$text,
   embeddings = sentence_embeddings
@@ -184,7 +184,7 @@ statements are the ground truth: the bars summarize, the statements
 verify.
 
 ```{r panel-helper, include=FALSE}
-palette_colors <- sbert_palette(nrow(topic_model$topics))
+palette_colors <- topic_palette(nrow(topic_model$topics))
 
 draw_topic_panel <- function(model, beta, topic_id, color, path) {
   count_rows <- head(subset(beta, topic == topic_id), 8)
@@ -266,12 +266,12 @@ invisible(lapply(
 # Where to go from here
 
 `predict()` places any new abstract into this map without refitting;
-`sbert_membership()` grades papers that sit between areas;
-`sbert_gamma()` with `sbert_segment()` shows which individual sentences of
+`topic_membership()` grades papers that sit between areas;
+`topic_gamma()` with `segment()` shows which individual sentences of
 an abstract belong to which topic. Two refinements are worth knowing for a
 publication-grade version: removing the corpus-wide search vocabulary from
 term extraction (it never affects the clustering, only the labels), and
-sweeping `n_topics` across candidate values with `sbert_coherence()` to
+sweeping `n_topics` across candidate values with `coherence()` to
 justify the chosen granularity.
 
 ```{r session, echo=FALSE}

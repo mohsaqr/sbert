@@ -30,7 +30,7 @@
 #' Obtain the Built-in Abbreviation Gazetteer
 #'
 #' Returns the abbreviations whose periods are never treated as sentence
-#' boundaries by [sbert_segment()]. Matching is case-insensitive and anchored
+#' boundaries by [segment()]. Matching is case-insensitive and anchored
 #' at a word boundary, so `"ST."` protects `"St. Petersburg"` but never the
 #' end of `"cost."`.
 #'
@@ -38,8 +38,8 @@
 #'   in a period.
 #' @export
 #' @examples
-#' head(sbert_abbreviations())
-sbert_abbreviations <- function() {
+#' head(abbreviations())
+abbreviations <- function() {
   sort(unique(.sbert_segment_abbreviations))
 }
 
@@ -193,7 +193,7 @@ segment_document <- function(text, level, merge_below, abbreviations) {
 #'
 #' Splits each document into units at a selectable granularity using
 #' deterministic sentence-boundary rules: a word-boundary-anchored,
-#' case-insensitive abbreviation gazetteer (see [sbert_abbreviations()]),
+#' case-insensitive abbreviation gazetteer (see [abbreviations()]),
 #' a decimal-number guard, and a parenthetical guard, plus shallow clause
 #' chunking at discourse connectives. No model call is involved, so
 #' segmentation works offline and is fully reproducible.
@@ -219,26 +219,26 @@ segment_document <- function(text, level, merge_below, abbreviations) {
 #'   segmentation.
 #' @param abbreviations Character vector of abbreviations (each ending in a
 #'   period) whose periods never end a sentence. Defaults to the built-in
-#'   gazetteer from [sbert_abbreviations()]; matching is case-insensitive.
+#'   gazetteer from [abbreviations()]; matching is case-insensitive.
 #' @return A base data frame with one row per segment and columns
 #'   `document_id` (integer position in `text`), `document_name` (name of the
 #'   input element, or `""`), `segment` (integer position within the
 #'   document), and `text` (the segment). Blank documents contribute no rows.
 #' @export
 #' @examples
-#' sbert_segment(
+#' segment(
 #'   "We propose a simulator which runs alongside the processor."
 #' )
 #'
-#' sbert_segment(
+#' segment(
 #'   c(intro = "See Fig. 3 for details. The next part follows."),
 #'   level = "sentence"
 #' )
-sbert_segment <- function(
+segment <- function(
   text,
   level = c("clause", "sentence", "phrase"),
   merge_below = 0L,
-  abbreviations = sbert_abbreviations()
+  abbreviations = default_abbreviations()
 ) {
   level <- match.arg(level)
   stopifnot(

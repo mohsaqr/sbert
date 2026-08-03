@@ -1,15 +1,15 @@
 testthat::test_that("cache paths and missing status are deterministic", {
   cache_dir <- tempfile("sbert-cache-")
-  status <- sbert_model_status(cache_dir)
+  status <- model_status(cache_dir)
 
-  testthat::expect_identical(sbert_cache_dir(), tools::R_user_dir("sbert", "cache"))
+  testthat::expect_identical(cache_dir(), tools::R_user_dir("sbert", "cache"))
   testthat::expect_s3_class(status, "data.frame")
   testthat::expect_identical(dim(status), c(2L, 6L))
   testthat::expect_identical(status$file, c("model.onnx", "tokenizer.json"))
   testthat::expect_false(any(status$exists))
   testthat::expect_false(any(status$valid))
   testthat::expect_true(all(is.na(status$actual_bytes)))
-  testthat::expect_identical(sbert_cache_size(cache_dir), 0)
+  testthat::expect_identical(cache_size(cache_dir), 0)
 })
 
 testthat::test_that("artifact validation checks size and SHA-256", {
@@ -94,22 +94,22 @@ testthat::test_that("the explicit model downloader is offline-testable and idemp
   )
   cache_dir <- tempfile("cache-")
 
-  first <- sbert_model_download("test-model", cache_dir, quiet = TRUE, timeout = 10)
-  second <- sbert_model_download("test-model", cache_dir, quiet = TRUE, timeout = 10)
-  status <- sbert_model_status(cache_dir, model = "test-model")
+  first <- model_download("test-model", cache_dir, quiet = TRUE, timeout = 10)
+  second <- model_download("test-model", cache_dir, quiet = TRUE, timeout = 10)
+  status <- model_status(cache_dir, model = "test-model")
 
   testthat::expect_identical(first, second)
   testthat::expect_true(all(status$valid))
-  testthat::expect_identical(sbert_cache_size(cache_dir), sum(bytes))
-  testthat::expect_true(sbert_model_remove(cache_dir, model = "test-model"))
+  testthat::expect_identical(cache_size(cache_dir), sum(bytes))
+  testthat::expect_true(model_remove(cache_dir, model = "test-model"))
   testthat::expect_false(dir.exists(first))
 })
 
 testthat::test_that("cache input validation rejects unsafe values", {
-  testthat::expect_error(sbert_model_status(NA_character_))
-  testthat::expect_error(sbert_model_download(timeout = 0))
-  testthat::expect_error(sbert_model_download("not-a-pinned-model"), "Unknown model")
-  testthat::expect_error(sbert_cache_size(character()))
-  testthat::expect_error(sbert_model_remove(""))
+  testthat::expect_error(model_status(NA_character_))
+  testthat::expect_error(model_download(timeout = 0))
+  testthat::expect_error(model_download("not-a-pinned-model"), "Unknown model")
+  testthat::expect_error(cache_size(character()))
+  testthat::expect_error(model_remove(""))
 })
 

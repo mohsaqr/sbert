@@ -370,7 +370,7 @@ frequent_ngrams <- do.call(
         analysis_data$translation[row_topic == topic_id],
         n = ngram_length,
         top_n = 10L,
-        stopwords = sbert_stopwords()
+        stopwords = stop_words()
       )
       data.frame(
         topic = rep.int(topic_id, nrow(frequency_table)),

@@ -25,8 +25,8 @@ testthat::test_that("mask-aware pooling matches a hand calculation", {
     dim = c(2L, 3L, 2L)
   )
   mask <- matrix(c(1, 1, 0, 1, 0, 0), nrow = 2L, byrow = TRUE)
-  pooled <- sbert_pool(hidden, mask, normalize = FALSE)
-  normalized <- sbert_pool(hidden, mask, normalize = TRUE)
+  pooled <- pool(hidden, mask, normalize = FALSE)
+  normalized <- pool(hidden, mask, normalize = TRUE)
 
   expected <- rbind(
     c(mean(c(hidden[1, 1, 1], hidden[1, 2, 1])), mean(c(hidden[1, 1, 2], hidden[1, 2, 2]))),
@@ -35,7 +35,7 @@ testthat::test_that("mask-aware pooling matches a hand calculation", {
   testthat::expect_equal(pooled, expected, tolerance = 1e-12)
   testthat::expect_equal(rowSums(normalized^2), c(1, 1), tolerance = 1e-12)
   testthat::expect_false(anyNA(normalized))
-  testthat::expect_error(sbert_pool(hidden, matrix(1, 3L, 2L)))
+  testthat::expect_error(pool(hidden, matrix(1, 3L, 2L)))
 })
 
 testthat::test_that("cls pooling takes the first token exactly", {
@@ -48,14 +48,14 @@ testthat::test_that("cls pooling takes the first token exactly", {
   )
   mask <- matrix(c(1, 1, 0, 1, 0, 0), nrow = 2L, byrow = TRUE)
 
-  cls <- sbert_pool(hidden, mask, normalize = FALSE, method = "cls")
+  cls <- pool(hidden, mask, normalize = FALSE, method = "cls")
 
   testthat::expect_equal(
     cls,
     rbind(c(hidden[1, 1, 1], hidden[1, 1, 2]), c(hidden[2, 1, 1], hidden[2, 1, 2])),
     tolerance = 1e-12
   )
-  testthat::expect_error(sbert_pool(hidden, mask, method = "max"))
+  testthat::expect_error(pool(hidden, mask, method = "max"))
 })
 
 testthat::test_that("the model prefix is prepended before tokenization", {
@@ -70,11 +70,11 @@ testthat::test_that("the model prefix is prepended before tokenization", {
     .package = "sbert"
   )
 
-  sbert_encode("hello", model)
+  encode("hello", model)
   testthat::expect_identical(seen$text, "query: hello")
-  sbert_encode("hello", model, prefix = "")
+  encode("hello", model, prefix = "")
   testthat::expect_identical(seen$text, "hello")
-  sbert_encode("hello", model, prefix = "passage: ")
+  encode("hello", model, prefix = "passage: ")
   testthat::expect_identical(seen$text, "passage: hello")
 })
 
@@ -108,14 +108,14 @@ testthat::test_that("encoding preserves order, names, batching, and empty input"
   )
   text <- c(a = "one", b = "three", c = "seven", d = "nine")
 
-  result <- sbert_encode(text, model, batch_size = 2L)
-  empty <- sbert_encode(character(), model)
+  result <- encode(text, model, batch_size = 2L)
+  empty <- encode(character(), model)
 
   testthat::expect_identical(calls$count, 2L)
   testthat::expect_identical(rownames(result), names(text))
   testthat::expect_identical(unname(result[, 1L]), c(3L, 5L, 5L, 4L))
   testthat::expect_identical(dim(empty), c(0L, 2L))
-  testthat::expect_error(sbert_encode(c("ok", NA_character_), model))
+  testthat::expect_error(encode(c("ok", NA_character_), model))
 })
 
 

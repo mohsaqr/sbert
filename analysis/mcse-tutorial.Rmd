@@ -1,0 +1,276 @@
+---
+title: "Bibliographic Topic Modeling: The MCSE Corpus"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    df_print: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.width = 8,
+  fig.height = 5,
+  dpi = 110,
+  out.width = "100%"
+)
+pkgload::load_all("..", quiet = TRUE)
+```
+
+A working tutorial on a real bibliographic export: 16,453 computing-education
+records with titles, abstracts, author keywords and metadata. Unlike the
+packaged `topic-modeling` vignette, this one needs the MCSE file, so it lives
+in `analysis/` rather than `vignettes/`.
+
+Every step below is one verb with named arguments returning a data frame you
+print. Nothing is assembled by hand at the call site.
+
+## Loading
+
+```{r load}
+mcse_path <- Sys.getenv(
+  "MCSE_RDS_PATH",
+  unset = file.path(
+    "/Users/mohammedsaqr/Documents/Documents X/MyData/AKA/STM",
+    "MCSE_gold.RDS"
+  )
+)
+mcse <- readRDS(mcse_path)
+
+dim(mcse)
+```
+
+A Scopus/WoS export uses short field codes: `TI` title, `AB` abstract, `DE`
+author keywords, `PY` year, `SO` source.
+
+```{r fields}
+head(subset(mcse, select = c(TI, PY, SO)), 3)
+```
+
+## Feeding the data frame in whole
+
+Pass the frame and name the text column. Every other column rides along into
+the fitted model, and rows whose abstract is missing, blank, or the literal
+`[NO ABSTRACT AVAILABLE]` placeholder are dropped once — you never write that
+filter yourself.
+
+```{r encode, eval=FALSE}
+fit <- topics(mcse, column = "AB", n_topics = 40)
+```
+
+Encoding 16,453 abstracts takes roughly twelve minutes on one core, so this
+tutorial reuses a cached matrix. Encode once, keep the matrix, and record
+*which model made it* — a matrix without its model id cannot be checked later,
+and mixing revisions fails silently because cosines still compute.
+
+```{r cached}
+cache <- readRDS("../outputs/mcse_abstract_30_topics/mcse_abstract_embeddings.rds")
+
+cache$model_id
+cache$model_revision
+dim(cache$abstract_embeddings)
+```
+
+The cache holds one row per *distinct* cleaned abstract — 15,308 of them, since
+352 records duplicate another. The recorded assignments map each source row
+back to its abstract:
+
+```{r align}
+assignments <- read.csv(
+  "../outputs/mcse_abstract_30_topics/source_assignments.csv",
+  stringsAsFactors = FALSE
+)
+modelled <- subset(assignments, included)
+
+nrow(modelled)
+```
+
+```{r expand}
+expand_rows <- function(embeddings, row_index) {
+  embeddings[row_index, , drop = FALSE]
+}
+embeddings <- expand_rows(
+  cache$abstract_embeddings,
+  row_index = modelled$abstract_id
+)
+abstracts <- modelled$cleaned_abstract
+
+dim(embeddings)
+```
+
+`expand_rows()` is a two-line local helper, not a call-site ritual: the
+brackets live inside a function, which is the only place they belong.
+
+## Choosing the topic count
+
+```{r sweep, cache=TRUE}
+sweep <- select_topics(
+  abstracts,
+  n_topics = c(10, 20, 30, 40, 50),
+  embeddings = embeddings,
+  measure = "npmi"
+)
+
+sweep
+```
+
+```{r sweep-plot}
+plot(sweep)
+```
+
+On this corpus coherence climbs to 40 topics and then turns down, while
+diversity and explained variance keep rising — as they always will with more
+topics. Forty is where the evidence stops improving.
+
+One caveat worth respecting: if any fit warns `did not converge in 100
+iterations`, raise `iter_max` before trusting a close ranking.
+
+```{r converge, eval=FALSE}
+sweep <- select_topics(
+  abstracts,
+  n_topics = c(30, 40, 50),
+  embeddings = embeddings,
+  iter_max = 300
+)
+```
+
+## The model
+
+```{r fit}
+fit <- fitted(sweep, n_topics = 40)
+fit
+```
+
+```{r summary}
+summary(fit)
+```
+
+## Reading the topics
+
+Distinctive terms — words that separate this topic from its neighbours:
+
+```{r terms}
+head(terms(fit, n = 6), 18)
+```
+
+The words each topic uses most, which is a different question:
+
+```{r terms-beta}
+head(terms(fit, n = 6, sort_by = "beta"), 18)
+```
+
+In a single-discipline corpus the shared vocabulary swamps everything:
+"students", "computer", "science", "course" appear in nearly every abstract, so
+they describe no topic in particular. Remove them and the labels sharpen —
+without refitting, because terms depend only on the assignments and the text.
+
+```{r stopwords}
+head(
+  terms(
+    fit,
+    n = 6,
+    stop_words = stop_words(
+      add = c("students", "student", "computer", "science", "course",
+              "courses", "computing", "education", "paper", "study")
+    )
+  ),
+  18
+)
+```
+
+BM25 weighting penalises cross-topic words more aggressively still:
+
+```{r bm25}
+head(terms(fit, n = 6, weighting = "bm25"), 12)
+```
+
+## Evidence
+
+```{r representatives}
+head(representatives(fit, n = 2), 10)
+```
+
+Margin ranking picks abstracts that belong to their own topic much more than to
+the runner-up, so these are the clear cases rather than merely the central
+ones.
+
+## Quality per topic
+
+```{r coherence}
+head(coherence(fit, measure = "npmi"), 12)
+```
+
+```{r diversity}
+topic_diversity(fit)
+```
+
+A low-coherence topic is a real finding, not a failure — it usually marks a
+residual cluster the embedding could not separate.
+
+## Structure among topics
+
+```{r hierarchy, fig.height=7}
+tree <- topic_hierarchy(fit)
+plot(tree)
+```
+
+```{r reduce}
+smaller <- reduce_topics(fit, n_topics = 20)
+smaller
+```
+
+Merging down the tree keeps the 40-topic structure nested inside the 20, which
+reads better in a report than an independent 20-topic fit.
+
+## Metadata came along
+
+Because the data frame went in whole, the year and source sit beside the topic
+assignment, so prevalence over time needs no join:
+
+```{r metadata, eval=FALSE}
+fit_with_metadata <- topics(mcse, column = "AB", n_topics = 40)
+
+head(
+  subset(
+    fit_with_metadata$documents,
+    select = c(document_id, topic, label, PY, SO)
+  ),
+  8
+)
+```
+
+Topic prevalence *over time* is the obvious next question, and it is the one
+step this tutorial cannot write as a single verb. Counting documents per topic
+per year currently means assembling a `table()` by hand at the call site —
+exactly the ritual Rule #0 forbids. That is an API gap, not a user problem:
+`TODO.md` lists dynamic topics (prevalence and per-period terms over a time
+variable, holding assignments fixed) as planned work. Until that verb exists,
+the honest thing is to note the gap rather than teach the workaround.
+
+## What this corpus taught us
+
+Three findings from testing retrieval and topic quality across this corpus and
+two unrelated ones (a social-network-analysis corpus and a biomedical one):
+
+- **Rank on abstracts, in one pass.** A title-first funnel — rank titles, keep
+  the top few thousand, re-rank those on abstracts — never beat single-pass
+  abstract scoring on any corpus tested. Whatever the title stage discards
+  cannot be recovered, so stage-one recall caps the whole pipeline.
+- **Weighting title, abstract and keyword scores together does not
+  generalize.** Weights fitted on MCSE gave a small gain here, none on the
+  second corpus, and a small gain on the third. The best weights differ per
+  corpus. Abstract-only is the honest default.
+- **Watch for topics that split on missing metadata.** When keyword vectors are
+  mixed into the document vector, the best-scoring weightings on this corpus
+  turned out to be separating records that *have* author keywords from those
+  that do not — 26% of them. Coherence and diversity both reward that
+  artifact, so neither metric catches it alone.
+
+## Next
+
+- `?terms` — every term setting, changeable without refitting.
+- `?select_topics` — the sweep and its retained models.
+- `blend()` with `segment()` — sentence-level topics that keep their parent
+  abstract's context.

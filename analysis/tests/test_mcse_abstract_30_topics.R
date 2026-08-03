@@ -485,7 +485,7 @@ testthat::test_that("MCSE result has exactly 30 internally consistent topics", {
     seq_len(3L)
   )
   common_word_stopwords <- unique(c(
-    sbert_stopwords(),
+    stop_words(),
     mcse_common_word_stopwords()
   ))
   common_word_tables <- lapply(

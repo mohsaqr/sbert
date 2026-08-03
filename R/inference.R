@@ -1,5 +1,5 @@
 # Inferential layer for fitted topic models: assignment of new documents,
-# soft topic membership, generative word probabilities, and document-topic
+# soft topic topic_membership, generative word probabilities, and document-topic
 # distributions. Everything operates on the deterministic k-means centroids
 # stored in the fitted model; nothing here refits or perturbs the clustering.
 
@@ -27,27 +27,27 @@ assign_topic_embeddings <- function(embeddings, centers) {
 
   normalized <- normalize_embedding_rows(embeddings)
   normalized_centers <- normalize_embedding_rows(centers)
-  similarity <- normalized %*% t(normalized_centers)
-  topic <- max.col(similarity, ties.method = "first")
+  topic_similarity <- normalized %*% t(normalized_centers)
+  topic <- max.col(topic_similarity, ties.method = "first")
   distance <- pmax(
     0,
-    1 - similarity[cbind(seq_len(nrow(similarity)), topic)]
+    1 - topic_similarity[cbind(seq_len(nrow(topic_similarity)), topic)]
   )
   list(
     topic = as.integer(topic),
     distance = unname(distance),
-    similarity = unname(similarity)
+    topic_similarity = unname(topic_similarity)
   )
 }
 
 # Resolve the embedding matrix for new text from exactly one of model /
-# embeddings, mirroring the sbert_topics() contract.
+# embeddings, mirroring the topics() contract.
 resolve_new_embeddings <- function(text, model, embeddings, batch_size, n_expected) {
   if (!is.null(model) && !is.null(embeddings)) {
     stop("Supply model or embeddings, not both.", call. = FALSE)
   }
   if (is.null(embeddings)) {
-    embeddings <- sbert_encode(
+    embeddings <- encode(
       text,
       resolve_sbert_model(model),
       batch_size = as.integer(batch_size),
@@ -79,13 +79,13 @@ resolve_new_embeddings <- function(text, model, embeddings, batch_size, n_expect
 #' model is not modified. Supply either a loaded `model` (to embed `text`) or
 #' a precomputed embedding matrix whose rows align with `text`.
 #'
-#' @param object A fitted [sbert_topics()] model.
+#' @param object A fitted [topics()] model.
 #' @param text Character vector of new documents.
-#' @param model A loaded [sbert_model][sbert_load_model()], a pinned model
+#' @param model A loaded [sbert_model][load_model()], a pinned model
 #'   name, or `NULL` for the default model; ignored when `embeddings` are
 #'   supplied. The embedding dimension must match the fitted model.
 #' @param embeddings Optional numeric matrix with one row per document.
-#' @param batch_size Batch size passed to [sbert_encode()] when `model` is
+#' @param batch_size Batch size passed to [encode()] when `model` is
 #'   used.
 #' @param ... Unused; included for S3 compatibility.
 #' @return A base data frame with one row per document and columns
@@ -98,7 +98,7 @@ resolve_new_embeddings <- function(text, model, embeddings, batch_size, n_expect
 #'   "Stocks and bonds trade", "Markets price shares"
 #' )
 #' embeddings <- rbind(c(1, 0), c(0.9, 0.1), c(0, 1), c(0.1, 0.9))
-#' fitted <- sbert_topics(text, 2, embeddings = embeddings)
+#' fitted <- topics(text, 2, embeddings = embeddings)
 #' predict(fitted, "Bulls and bears move markets", embeddings = rbind(c(0.2, 0.8)))
 predict.sbert_topic_model <- function(
   object,
@@ -146,18 +146,18 @@ predict.sbert_topic_model <- function(
 
 #' Soft Topic Membership Probabilities
 #'
-#' Computes fuzzy-c-means-style membership of every document in every topic
+#' Computes fuzzy-c-means-style topic_membership of every document in every topic
 #' from cosine distances to the stored centroids, without changing the
 #' deterministic hard clustering. In high-dimensional embedding spaces
 #' distances concentrate, so the textbook fuzzifier `sharpness = 2` collapses
 #' memberships toward the uniform `1/k`; the default `sharpness = 1.15`
-#' preserves contrast. The membership ranking of topics within a document is
+#' preserves contrast. The topic_membership ranking of topics within a document is
 #' invariant to `sharpness`; the probability magnitudes are not, and should be
 #' interpreted relative to the chosen value.
 #'
-#' @param object A fitted [sbert_topics()] model.
+#' @param object A fitted [topics()] model.
 #' @param embeddings Optional numeric matrix of document embeddings. When
-#'   omitted, the embeddings stored by `sbert_topics(keep_embeddings = TRUE)`
+#'   omitted, the embeddings stored by `topics(keep_embeddings = TRUE)`
 #'   are used.
 #' @param sharpness Fuzzy-c-means fuzzifier `m`. Must be greater than 1;
 #'   values close to 1 give crisper memberships.
@@ -171,9 +171,9 @@ predict.sbert_topic_model <- function(
 #'   "Stocks and bonds trade", "Markets price shares"
 #' )
 #' embeddings <- rbind(c(1, 0), c(0.9, 0.1), c(0, 1), c(0.1, 0.9))
-#' fitted <- sbert_topics(text, 2, embeddings = embeddings, keep_embeddings = TRUE)
-#' sbert_membership(fitted)
-sbert_membership <- function(object, embeddings = NULL, sharpness = 1.15) {
+#' fitted <- topics(text, 2, embeddings = embeddings, keep_embeddings = TRUE)
+#' topic_membership(fitted)
+topic_membership <- function(object, embeddings = NULL, sharpness = 1.15) {
   stopifnot(
     inherits(object, "sbert_topic_model"),
     is.numeric(sharpness),
@@ -195,8 +195,8 @@ sbert_membership <- function(object, embeddings = NULL, sharpness = 1.15) {
   }
 
   assignment <- assign_topic_embeddings(embeddings, object$centers)
-  distance <- pmax(1 - assignment$similarity, 1e-12)
-  # Fuzzy-c-means membership computed in log space for numerical stability:
+  distance <- pmax(1 - assignment$topic_similarity, 1e-12)
+  # Fuzzy-c-means topic_membership computed in log space for numerical stability:
   # u_ij = d_ij^(-2/(m-1)) / sum_l d_il^(-2/(m-1)).
   weight <- -(2 / (sharpness - 1)) * log(distance)
   weight <- weight - apply(weight, 1L, max)
@@ -218,133 +218,25 @@ sbert_membership <- function(object, embeddings = NULL, sharpness = 1.15) {
   long
 }
 
-#' Generative Word Probabilities per Topic
-#'
-#' Computes the empirical multinomial `beta`, the probability of each
-#' vocabulary term given a topic, from the within-topic token counts of the
-#' fitted documents. `beta` is the generative view dominated by frequent
-#' words; it deliberately complements (and must not be confused with) the
-#' discriminative class-based TF-IDF scores in `object$terms`. Tokenization
-#' reuses the settings the model was fitted with (stop words, minimum token
-#' length, stemming, and minimum corpus frequency).
-#'
-#' @param object A fitted [sbert_topics()] model.
-#' @param smoothing Additive (Laplace) smoothing constant. With the default
-#'   `0`, only observed topic-term pairs are returned; with a positive value,
-#'   every vocabulary term receives positive probability in every topic.
-#' @param n_terms Optional cap on the number of terms returned per topic
-#'   (highest `beta` first). `NULL` returns the full distribution.
-#' @return A base data frame with columns `topic`, `term`, `beta`, `count`,
-#'   and `rank`, ordered by topic and rank. `beta` sums to 1 within each
-#'   topic when `n_terms` is `NULL`.
-#' @export
-#' @examples
-#' text <- c(
-#'   "apple apple banana", "banana apple fruit",
-#'   "stocks trade daily", "markets trade stocks"
-#' )
-#' embeddings <- rbind(c(1, 0), c(0.9, 0.1), c(0, 1), c(0.1, 0.9))
-#' fitted <- sbert_topics(text, 2, embeddings = embeddings, stopwords = character())
-#' sbert_beta(fitted)
-sbert_beta <- function(object, smoothing = 0, n_terms = NULL) {
-  stopifnot(
-    inherits(object, "sbert_topic_model"),
-    is.numeric(smoothing),
-    length(smoothing) == 1L,
-    is.finite(smoothing),
-    smoothing >= 0,
-    is.null(n_terms) ||
-      (
-        is.numeric(n_terms) && length(n_terms) == 1L && is.finite(n_terms) &&
-          n_terms >= 1 && n_terms == as.integer(n_terms)
-      )
-  )
-
-  settings <- object$settings
-  token_lists <- tokenize_topic_documents(
-    object$documents$text,
-    stopwords = settings$stopwords,
-    min_token_length = settings$min_token_length,
-    stem = settings$stem
-  )
-  all_tokens <- unlist(token_lists, use.names = FALSE)
-  if (length(all_tokens) == 0L) {
-    stop("The fitted documents contain no usable tokens.", call. = FALSE)
-  }
-  corpus_counts <- table(all_tokens)
-  vocabulary <- sort(names(
-    corpus_counts[corpus_counts >= settings$min_term_frequency]
-  ))
-  if (length(vocabulary) == 0L) {
-    stop(
-      "No vocabulary term reaches the fitted min_term_frequency.",
-      call. = FALSE
-    )
-  }
-
-  topic_of_token <- rep.int(object$documents$topic, lengths(token_lists))
-  keep <- all_tokens %in% vocabulary
-  count_table <- table(
-    factor(topic_of_token[keep], levels = seq_len(settings$n_topics)),
-    factor(all_tokens[keep], levels = vocabulary)
-  )
-  count_matrix <- matrix(
-    as.numeric(count_table),
-    nrow = settings$n_topics,
-    dimnames = list(NULL, vocabulary)
-  )
-  topic_totals <- rowSums(count_matrix)
-  beta_matrix <- (count_matrix + smoothing) /
-    (topic_totals + smoothing * length(vocabulary))
-
-  rows <- lapply(
-    seq_len(settings$n_topics),
-    function(topic_id) {
-      beta_row <- beta_matrix[topic_id, ]
-      count_row <- count_matrix[topic_id, ]
-      keep_terms <- if (smoothing > 0) {
-        rep.int(TRUE, length(beta_row))
-      } else {
-        count_row > 0
-      }
-      ordering <- order(-beta_row[keep_terms], vocabulary[keep_terms])
-      selected <- which(keep_terms)[ordering]
-      if (!is.null(n_terms)) {
-        selected <- utils::head(selected, as.integer(n_terms))
-      }
-      data.frame(
-        topic = rep.int(topic_id, length(selected)),
-        term = vocabulary[selected],
-        beta = unname(beta_row[selected]),
-        count = as.integer(count_row[selected]),
-        rank = seq_along(selected),
-        stringsAsFactors = FALSE
-      )
-    }
-  )
-  result <- do.call(rbind, rows)
-  rownames(result) <- NULL
-  result
-}
 
 #' Document-Topic Distributions from Segment Assignments
 #'
 #' Computes `gamma`, the distribution of every document over the fitted
-#' topics, by segmenting each document with [sbert_segment()], assigning each
+#' topics, by segmenting each document with [segment()], assigning each
 #' segment to its nearest topic centroid, and normalizing the per-document
-#' segment counts. This yields parameter-free mixed membership: a document
+#' segment counts. This yields parameter-free mixed topic_membership: a document
 #' that discusses two topics in different sentences receives weight on both,
 #' which the single-embedding hard assignment cannot express.
 #'
-#' @param object A fitted [sbert_topics()] model.
+#' @param object A fitted [topics()] model.
 #' @param text Character vector of documents.
-#' @param model A loaded [sbert_model][sbert_load_model()], a pinned model
+#' @param model A loaded [sbert_model][load_model()], a pinned model
 #'   name, or `NULL` for the default model, used to embed the segments;
 #'   ignored when `embeddings` are supplied.
 #' @param embeddings Optional precomputed numeric matrix of segment
-#'   embeddings whose rows align with `sbert_segment(text, level = level)`.
-#' @param level Segmentation granularity passed to [sbert_segment()].
-#' @param batch_size Batch size passed to [sbert_encode()] when `model` is
+#'   embeddings whose rows align with `segment(text, level = level)`.
+#' @param level Segmentation granularity passed to [segment()].
+#' @param batch_size Batch size passed to [encode()] when `model` is
 #'   used.
 #' @return A base data frame with one row per document-topic pair and columns
 #'   `document_id`, `topic`, `gamma`, and `n_segments`. `gamma` sums to 1
@@ -356,11 +248,11 @@ sbert_beta <- function(object, smoothing = 0, n_terms = NULL) {
 #'   "Stocks and bonds trade", "Markets price shares"
 #' )
 #' embeddings <- rbind(c(1, 0), c(0.9, 0.1), c(0, 1), c(0.1, 0.9))
-#' fitted <- sbert_topics(text, 2, embeddings = embeddings)
+#' fitted <- topics(text, 2, embeddings = embeddings)
 #' mixed <- "Cats chase mice. Stocks and bonds trade."
 #' segment_embeddings <- rbind(c(1, 0), c(0, 1))
-#' sbert_gamma(fitted, mixed, embeddings = segment_embeddings)
-sbert_gamma <- function(
+#' topic_gamma(fitted, mixed, embeddings = segment_embeddings)
+topic_gamma <- function(
   object,
   text,
   model = NULL,
@@ -381,7 +273,7 @@ sbert_gamma <- function(
     batch_size == as.integer(batch_size)
   )
 
-  segments <- sbert_segment(text, level = level)
+  segments <- segment(text, level = level)
   if (nrow(segments) == 0L) {
     stop("No document produced any segment.", call. = FALSE)
   }
@@ -429,17 +321,17 @@ sbert_gamma <- function(
 #' toward the shorter unit, then alphabetically, so the selection is fully
 #' deterministic.
 #'
-#' @param object A fitted [sbert_topics()] model.
+#' @param object A fitted [topics()] model.
 #' @param text Character vector of candidate units, for example the `text`
-#'   column of [sbert_segment()].
-#' @param model A loaded [sbert_model][sbert_load_model()], a pinned model
+#'   column of [segment()].
+#' @param model A loaded [sbert_model][load_model()], a pinned model
 #'   name, or `NULL` for the default model; ignored when `embeddings` are
 #'   supplied.
 #' @param embeddings Optional numeric matrix with one row per unit.
 #' @param n Number of units returned per topic.
 #' @param rank `"margin"` (default) or `"distance"` (raw closeness to the
 #'   topic centroid).
-#' @param batch_size Batch size passed to [sbert_encode()] when `model` is
+#' @param batch_size Batch size passed to [encode()] when `model` is
 #'   used.
 #' @return A base data frame with columns `topic`, `rank`, `text`,
 #'   `distance` (to the unit's own centroid), and `margin`, ordered by topic
@@ -451,16 +343,16 @@ sbert_gamma <- function(
 #'   "Stocks and bonds trade", "Markets price shares"
 #' )
 #' embeddings <- rbind(c(1, 0), c(0.9, 0.1), c(0, 1), c(0.1, 0.9))
-#' fitted <- sbert_topics(text, 2, embeddings = embeddings)
-#' sbert_representatives(
+#' fitted <- topics(text, 2, embeddings = embeddings)
+#' representatives(
 #'   fitted,
 #'   c("kittens pounce", "bond yields", "pets and prices"),
 #'   embeddings = rbind(c(1, 0.1), c(0.1, 1), c(0.7, 0.7)),
 #'   n = 1
 #' )
-sbert_representatives <- function(
+representatives <- function(
   object,
-  text,
+  text = NULL,
   model = NULL,
   embeddings = NULL,
   n = 3L,
@@ -468,8 +360,23 @@ sbert_representatives <- function(
   batch_size = 32L
 ) {
   rank <- match.arg(rank)
+  stopifnot(inherits(object, "sbert_topic_model"))
+  # With no text supplied, rank the documents the model was fitted on. Their
+  # embeddings are already stored, so nothing is re-encoded.
+  if (is.null(text)) {
+    text <- object$documents$text
+    if (is.null(embeddings)) {
+      embeddings <- object$embeddings
+      if (is.null(embeddings)) {
+        stop(
+          "representatives: this model kept no embeddings. Refit with ",
+          "topics(..., keep_embeddings = TRUE), or supply 'text'.",
+          call. = FALSE
+        )
+      }
+    }
+  }
   stopifnot(
-    inherits(object, "sbert_topic_model"),
     is.character(text),
     length(text) >= 1L,
     !anyNA(text),
@@ -494,7 +401,7 @@ sbert_representatives <- function(
   )
   assignment <- assign_topic_embeddings(embedding_matrix, object$centers)
   # pmax() would strip the dim attribute; clamp by index assignment instead.
-  distance_matrix <- 1 - assignment$similarity
+  distance_matrix <- 1 - assignment$topic_similarity
   distance_matrix[distance_matrix < 0] <- 0
   own_distance <- assignment$distance
   second_distance <- vapply(

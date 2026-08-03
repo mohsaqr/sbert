@@ -1,9 +1,9 @@
 testthat::test_that("model loading fails clearly when artifacts are missing", {
   testthat::expect_error(
-    sbert_load_model(cache_dir = tempfile("missing-cache-")),
-    "Run sbert_model_download"
+    load_model(cache_dir = tempfile("missing-cache-")),
+    "Run model_download"
   )
-  testthat::expect_error(sbert_load_model("not-a-pinned-model"), "Unknown model")
+  testthat::expect_error(load_model("not-a-pinned-model"), "Unknown model")
 })
 
 testthat::test_that("model loading builds a validated sbert_model", {
@@ -25,14 +25,14 @@ testthat::test_that("model loading builds a validated sbert_model", {
   fake_tokenizer_instance <- fake_tokenizer()
   fake_onnx_instance <- structure(list(path = paths[[1L]]), class = "onnx_model")
   testthat::local_mocked_bindings(
-    sbert_model_status = function(cache_dir, model) status,
+    model_status = function(cache_dir, model) status,
     sbert_onnx_is_installed = function() TRUE,
     load_sbert_tokenizer = function(path) fake_tokenizer_instance,
     load_sbert_onnx_model = function(path, backend, threads) fake_onnx_instance,
     .package = "sbert"
   )
 
-  model <- sbert_load_model(cache_dir = cache_dir, backend = "cpu", threads = 1L)
+  model <- load_model(cache_dir = cache_dir, backend = "cpu", threads = 1L)
 
   testthat::expect_s3_class(model, "sbert_model")
   testthat::expect_identical(model$dimension, 384L)
@@ -42,7 +42,7 @@ testthat::test_that("model loading builds a validated sbert_model", {
   testthat::expect_identical(model$pad_token, "[PAD]")
   testthat::expect_identical(model$token_type_ids, TRUE)
   testthat::expect_error(
-    sbert_load_model(cache_dir = cache_dir, backend = "invalid")
+    load_model(cache_dir = cache_dir, backend = "invalid")
   )
 })
 
@@ -54,8 +54,8 @@ testthat::test_that("runtime installation remains explicit and testable", {
     .package = "sbert"
   )
 
-  testthat::expect_identical(sbert_install_runtime(), "auto-installed")
-  testthat::expect_identical(sbert_install_runtime(FALSE), "cpu-installed")
-  testthat::expect_identical(sbert_install_runtime(TRUE), "cuda-installed")
-  testthat::expect_error(sbert_install_runtime(12))
+  testthat::expect_identical(install_runtime(), "auto-installed")
+  testthat::expect_identical(install_runtime(FALSE), "cpu-installed")
+  testthat::expect_identical(install_runtime(TRUE), "cuda-installed")
+  testthat::expect_error(install_runtime(12))
 })

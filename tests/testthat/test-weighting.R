@@ -6,7 +6,7 @@ testthat::test_that("c-TF-IDF uses a real-valued average topic length", {
     topic = as.integer(c(1, 2)),
     n_topics = 2L,
     n_terms = 3L,
-    stopwords = character(),
+    stop_words = character(),
     min_term_frequency = 1L,
     min_token_length = 1L
   )
@@ -26,7 +26,7 @@ testthat::test_that("BM25 weighting matches the published formula", {
     topic = as.integer(c(1, 2)),
     n_topics = 2L,
     n_terms = 3L,
-    stopwords = character(),
+    stop_words = character(),
     min_term_frequency = 1L,
     min_token_length = 1L,
     weighting = "bm25"
@@ -47,7 +47,7 @@ testthat::test_that("reduce_frequent_words square-roots the term frequency", {
     topic = as.integer(c(1, 2)),
     n_topics = 2L,
     n_terms = 3L,
-    stopwords = character(),
+    stop_words = character(),
     min_term_frequency = 1L,
     min_token_length = 1L
   )
@@ -56,7 +56,7 @@ testthat::test_that("reduce_frequent_words square-roots the term frequency", {
     topic = as.integer(c(1, 2)),
     n_topics = 2L,
     n_terms = 3L,
-    stopwords = character(),
+    stop_words = character(),
     min_term_frequency = 1L,
     min_token_length = 1L,
     reduce_frequent_words = TRUE
@@ -70,12 +70,12 @@ testthat::test_that("reduce_frequent_words square-roots the term frequency", {
   )
 })
 
-testthat::test_that("sbert_topics threads weighting options into settings", {
+testthat::test_that("topics threads weighting options into settings", {
   text <- c("cats mice", "dogs balls", "stocks bonds", "market shares")
   embeddings <- rbind(c(1, 0), c(0.9, 0.1), c(0, 1), c(0.1, 0.9))
 
-  default_model <- sbert_topics(text, 2L, embeddings = embeddings)
-  bm25_model <- sbert_topics(
+  default_model <- topics(text, 2L, embeddings = embeddings)
+  bm25_model <- topics(
     text,
     2L,
     embeddings = embeddings,
@@ -88,6 +88,6 @@ testthat::test_that("sbert_topics threads weighting options into settings", {
   testthat::expect_identical(bm25_model$settings$weighting, "bm25")
   testthat::expect_true(bm25_model$settings$reduce_frequent_words)
   testthat::expect_error(
-    sbert_topics(text, 2L, embeddings = embeddings, weighting = "tfidf")
+    topics(text, 2L, embeddings = embeddings, weighting = "tfidf")
   )
 })

@@ -1,21 +1,21 @@
 #' Load a Pinned Sentence-BERT Model
 #'
 #' Loads already-downloaded model artifacts. The function never downloads
-#' model files or native libraries. See [sbert_models()] for the available
+#' model files or native libraries. See [models()] for the available
 #' pinned models.
 #'
-#' @param model Name of a pinned model listed by [sbert_models()].
-#' @param cache_dir Cache root returned by [sbert_cache_dir()].
+#' @param model Name of a pinned model listed by [models()].
+#' @param cache_dir Cache root returned by [cache_dir()].
 #' @param backend ONNX execution backend accepted by [onnxr::onnx_model()].
 #' @param threads Positive number of inference threads.
 #' @param verify Whether to verify file sizes and SHA-256 hashes before loading.
 #' @return An object of class `sbert_model`.
 #' @export
 #' @examplesIf interactive()
-#' model <- sbert_load_model()
-sbert_load_model <- function(
+#' model <- load_model()
+load_model <- function(
   model = "all-MiniLM-L6-v2",
-  cache_dir = sbert_cache_dir(),
+  cache_dir = default_cache_dir(),
   backend = "cpu",
   threads = 1L,
   verify = TRUE
@@ -40,10 +40,10 @@ sbert_load_model <- function(
 
   manifest <- resolve_sbert_manifest(model)
 
-  status <- sbert_model_status(cache_dir, model = manifest$short_name)
+  status <- model_status(cache_dir, model = manifest$short_name)
   if (!all(status$exists)) {
     stop(
-      "Model files are missing. Run sbert_model_download() explicitly first.",
+      "Model files are missing. Run model_download() explicitly first.",
       call. = FALSE
     )
   }
@@ -60,7 +60,7 @@ sbert_load_model <- function(
   }
   if (!sbert_onnx_is_installed()) {
     stop(
-      "ONNX Runtime is not installed. Run sbert_install_runtime() explicitly first.",
+      "ONNX Runtime is not installed. Run install_runtime() explicitly first.",
       call. = FALSE
     )
   }

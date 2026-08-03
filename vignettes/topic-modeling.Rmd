@@ -1,0 +1,241 @@
+---
+title: "Topic Modeling: A Tutorial"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Topic Modeling: A Tutorial}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.width = 7,
+  fig.height = 4.5,
+  dpi = 110,
+  out.width = "100%"
+)
+library(sbert)
+fixture <- readRDS(system.file("extdata", "feedback_embeddings.rds", package = "sbert"))
+```
+
+This tutorial fits a topic model end to end on real data and reads the result.
+Every step is one verb with named arguments returning a data frame you print
+directly.
+
+## The data
+
+`feedback_translations` ships with the package: 8,987 AI-generated mathematics
+feedback messages from the Levebee application, each paired with an English
+translation. The source languages include Czech, Slovak, Polish, German,
+Hungarian, Romanian, Ukrainian, Russian, Mongolian, and Vietnamese.
+
+```{r data}
+head(feedback_translations)
+```
+
+The messages are short instructional hints. Many repeat verbatim — "Very
+good!" appears many times — which matters for topic modeling, because a
+template that occurs 200 times would otherwise pull a topic toward itself.
+`dedupe()` collapses repeats and records how often each one occurred:
+
+```{r dedupe, eval=FALSE}
+corpus <- dedupe(feedback_translations$translation)
+head(corpus)
+```
+
+## Embedding
+
+Encoding is the one expensive step, so do it once and reuse the matrix:
+
+```{r encode, eval=FALSE}
+install_runtime()
+model_download()
+
+embeddings <- encode(corpus$text, batch_size = 64)
+```
+
+To keep this vignette buildable without a download, the remaining chunks use a
+precomputed matrix for 600 of those messages, encoded with the pinned
+`all-MiniLM-L6-v2`:
+
+```{r fixture}
+text <- fixture$text
+embeddings <- fixture$embeddings
+
+length(text)
+dim(embeddings)
+```
+
+## Choosing how many topics
+
+There is no correct topic count. `select_topics()` fits one model per
+candidate and reports the numbers that justify a choice — so you pick from a
+table rather than by habit:
+
+```{r sweep}
+sweep <- select_topics(
+  text,
+  n_topics = c(4, 6, 8, 10, 12),
+  embeddings = embeddings,
+  measure = "npmi"
+)
+
+sweep
+```
+
+Read it this way: coherence measures whether a topic's top terms actually
+co-occur, diversity whether topics repeat each other's vocabulary, and
+`explained` how much embedding variance sits between topics rather than
+within them. Coherence usually falls as counts rise while `explained` always
+rises, so the useful signal is the count *after which coherence stops
+improving* — not a global maximum.
+
+```{r sweep-plot}
+plot(sweep)
+```
+
+The sweep keeps every model it fitted, so committing to one costs nothing:
+
+```{r pick}
+fit <- fitted(sweep, n_topics = 8)
+fit
+```
+
+## Reading the topics
+
+`summary()` is the report: sizes, quality, and the terms that define each
+topic.
+
+```{r summary}
+summary(fit)
+```
+
+Terms are ranked by class-based TF-IDF, which favours words that separate this
+topic from the others:
+
+```{r terms}
+head(terms(fit, n = 5), 15)
+```
+
+Distinctive is not the same as frequent. To see the words a topic simply uses
+most — its raw \(p(term \mid topic)\) — sort by `beta` instead:
+
+```{r terms-beta}
+head(terms(fit, n = 5, sort_by = "beta"), 15)
+```
+
+Term settings can be changed without refitting anything, because terms depend
+only on the fitted assignments and the text:
+
+```{r terms-retune}
+head(terms(fit, n = 5, weighting = "bm25"), 10)
+```
+
+If a word appears in nearly every document it defines nothing. Exclude it and
+look again:
+
+```{r stopwords}
+head(terms(fit, n = 5, stop_words = stop_words(add = c("try", "click"))), 10)
+```
+
+## Evidence for each topic
+
+Terms describe a topic; documents prove it. `representatives()` ranks by
+margin — how much more a document belongs to its own topic than to its closest
+rival — which surfaces the clear cases rather than merely the central ones:
+
+```{r representatives}
+head(representatives(fit, n = 2), 8)
+```
+
+## Quality
+
+```{r quality}
+coherence(fit, measure = "npmi")
+```
+
+```{r diversity}
+topic_diversity(fit)
+```
+
+Diversity is the share of distinct terms across all topics' term lists: 1
+means no topic repeats another's vocabulary, low values mean the model has
+split one theme several ways.
+
+## Which topics are neighbours?
+
+```{r hierarchy}
+tree <- topic_hierarchy(fit)
+tree
+```
+
+```{r hierarchy-plot}
+plot(tree)
+```
+
+Merging down the tree is not the same as refitting at a smaller count: it
+keeps the finer structure as a nesting, which is usually what you want for
+reporting.
+
+```{r reduce}
+smaller <- reduce_topics(fit, n_topics = 5)
+smaller
+```
+
+## Assigning new messages
+
+```{r predict, eval=FALSE}
+predict(fit, c("Well done, that is correct!", "Look at the picture again."))
+```
+
+Hard assignment gives each document one topic. When you need the full picture
+— how strongly every document belongs to every topic — ask for membership:
+
+```{r membership}
+head(topic_membership(fit), 8)
+```
+
+Probabilities sum to 1 within a document, and `rank` 1 is its strongest topic.
+
+## Visual summary
+
+```{r plots, fig.height=5}
+plot(fit, type = "sizes")
+```
+
+```{r plot-terms, fig.height=6}
+plot(fit, type = "terms")
+```
+
+## Guided topics
+
+When you already know what you are looking for, seed it. Seeds become the
+starting centroids and name their topics:
+
+```{r seeds, eval=FALSE}
+guided <- topics(
+  text,
+  n_topics = 4,
+  embeddings = embeddings,
+  seeds = c(
+    praise = "well done excellent correct answer",
+    retry = "try again check your answer",
+    instruction = "read the task and choose the picture",
+    counting = "count the numbers and add them"
+  )
+)
+```
+
+With `fixed_seeds = TRUE` the centroids are frozen and every document is
+assigned to its nearest seed — zero-shot classification into categories you
+defined.
+
+## Where to go next
+
+- `keywords()` extracts keywords from documents directly, without a topic
+  model.
+- `segment()` splits documents into sentences or clauses, and `blend()`
+  carries each segment's parent-document context into its embedding.
+- `?topics` documents every argument used above.

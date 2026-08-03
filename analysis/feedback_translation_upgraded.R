@@ -45,7 +45,7 @@ stopifnot(
 # frequent-word reduction (the tuned setting in Mendonca & Figueira 2025,
 # Table I) plus Porter stemming (which every cited paper applies) yields
 # distinct, deduplicated term lists.
-topic_model <- sbert_topics(
+topic_model <- topics(
   analysis_data$translation_clean,
   n_topics = selected_topic_count,
   embeddings = analysis_embeddings,
@@ -61,9 +61,9 @@ topic_model <- sbert_topics(
 )
 
 # ---- Intrinsic evaluation (new in 0.2.0) -----------------------------------
-coherence_umass <- sbert_coherence(topic_model, measure = "umass", n_terms = 10L)
-coherence_npmi <- sbert_coherence(topic_model, measure = "npmi", n_terms = 10L)
-diversity <- sbert_diversity(topic_model, n_terms = 10L)
+coherence_umass <- coherence(topic_model, measure = "umass", n_terms = 10L)
+coherence_npmi <- coherence(topic_model, measure = "npmi", n_terms = 10L)
+diversity <- topic_diversity(topic_model, n_terms = 10L)
 
 topic_quality <- data.frame(
   topic = topic_model$topics$topic,

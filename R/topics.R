@@ -31,9 +31,9 @@
 #' @return A sorted character vector of lowercase stop words.
 #' @export
 #' @examples
-#' head(sbert_stopwords())
-#' sbert_stopwords(add = c("students", "learning"), remove = "against")
-sbert_stopwords <- function(language = "en", add = NULL, remove = NULL) {
+#' head(stop_words())
+#' stop_words(add = c("students", "learning"), remove = "against")
+stop_words <- function(language = "en", add = NULL, remove = NULL) {
   stopifnot(
     is.character(language),
     length(language) == 1L,
@@ -49,12 +49,12 @@ sbert_stopwords <- function(language = "en", add = NULL, remove = NULL) {
   sort(setdiff(words, tolower(remove)))
 }
 
-tokenize_topic_documents <- function(text, stopwords, min_token_length, stem = FALSE) {
+tokenize_topic_documents <- function(text, stop_words, min_token_length, stem = FALSE) {
   stopifnot(
     is.character(text),
     !anyNA(text),
-    is.character(stopwords),
-    !anyNA(stopwords),
+    is.character(stop_words),
+    !anyNA(stop_words),
     is.numeric(min_token_length),
     length(min_token_length) == 1L,
     is.finite(min_token_length),
@@ -72,7 +72,7 @@ tokenize_topic_documents <- function(text, stopwords, min_token_length, stem = F
   token_matches <- gregexpr(token_pattern, normalized_text, perl = TRUE)
   token_lists <- regmatches(normalized_text, token_matches)
   normalized_stopwords <- unique(
-    gsub("\u2019", "'", tolower(enc2utf8(stopwords)), fixed = TRUE)
+    gsub("\u2019", "'", tolower(enc2utf8(stop_words)), fixed = TRUE)
   )
 
   filtered <- lapply(
@@ -133,7 +133,7 @@ topic_term_scores <- function(
   topic,
   n_topics,
   n_terms,
-  stopwords,
+  stop_words,
   min_term_frequency,
   min_token_length,
   weighting = c("ctfidf", "bm25"),
@@ -163,7 +163,7 @@ topic_term_scores <- function(
     !is.na(reduce_frequent_words)
   )
 
-  token_lists <- tokenize_topic_documents(text, stopwords, min_token_length, stem = stem)
+  token_lists <- tokenize_topic_documents(text, stop_words, min_token_length, stem = stem)
   all_tokens <- unlist(token_lists, use.names = FALSE)
   if (length(all_tokens) == 0L) {
     stop("No topic terms remain after tokenization and filtering.", call. = FALSE)
@@ -515,7 +515,7 @@ encode_topic_documents <- function(text, model, batch_size) {
     batch_size >= 1,
     batch_size == as.integer(batch_size)
   )
-  sbert_encode(
+  encode(
     text,
     model,
     batch_size = as.integer(batch_size),
@@ -543,16 +543,16 @@ encode_topic_documents <- function(text, model, batch_size) {
 #'
 #' @param text Character vector containing one document per element.
 #' @param n_topics Number of semantic topics. Must be at least two.
-#' @param model A loaded [sbert_model][sbert_load_model()], a pinned model
-#'   name from [sbert_models()], or `NULL` for the default model. Ignored
+#' @param model A loaded [sbert_model][load_model()], a pinned model
+#'   name from [models()], or `NULL` for the default model. Ignored
 #'   when `embeddings` are supplied.
 #' @param embeddings Optional numeric matrix with one row per document;
 #'   when supplied, no model is loaded or used.
-#' @param batch_size Batch size passed to [sbert_encode()] when `model` is used.
+#' @param batch_size Batch size passed to [encode()] when `model` is used.
 #' @param iter_max Maximum deterministic k-means iterations.
 #' @param n_terms Maximum class-based TF-IDF terms returned per topic.
 #' @param n_representatives Maximum representative documents per topic.
-#' @param stopwords Character vector excluded from topic terms. Use
+#' @param stop_words Character vector excluded from topic terms. Use
 #'   `character()` to disable stop-word filtering.
 #' @param min_term_frequency Minimum corpus-wide token frequency.
 #' @param min_token_length Minimum Unicode character length for a topic token.
@@ -593,29 +593,40 @@ encode_topic_documents <- function(text, model, batch_size) {
 #'   "Stocks and bonds trade", "Markets price shares"
 #' )
 #' embeddings <- rbind(c(1, 0), c(0.9, 0.1), c(0, 1), c(0.1, 0.9))
-#' topics <- sbert_topics(text, 2, embeddings = embeddings)
+#' topics <- topics(text, 2, embeddings = embeddings)
 #' topics$topics
-sbert_topics <- function(
+topics <- function(
   text,
   n_topics,
+  column = NULL,
   model = NULL,
   embeddings = NULL,
   batch_size = 32L,
   iter_max = 100L,
   n_terms = 10L,
   n_representatives = 3L,
-  stopwords = sbert_stopwords(),
+  stop_words = default_stop_words(),
   min_term_frequency = 1L,
   min_token_length = 2L,
   weighting = c("ctfidf", "bm25"),
   reduce_frequent_words = FALSE,
   stem = FALSE,
-  keep_embeddings = FALSE,
+  keep_embeddings = TRUE,
   seeds = NULL,
   seed_embeddings = NULL,
   fixed_seeds = FALSE
 ) {
   weighting <- match.arg(weighting)
+
+  # A data frame goes in whole: `column` names the text to model, every other
+  # column rides along into `$documents`, and unusable rows are dropped here
+  # rather than by every caller in turn. A character vector keeps the old path.
+  prepared <- prepare_topic_input(text, column)
+  text <- prepared$text
+  metadata <- prepared$metadata
+  if (!is.null(embeddings) && length(prepared$kept) < prepared$n_supplied) {
+    embeddings <- embeddings[prepared$kept, , drop = FALSE]
+  }
   stopifnot(
     is.character(text),
     !anyNA(text),
@@ -646,8 +657,8 @@ sbert_topics <- function(
     is.finite(n_representatives),
     n_representatives >= 1,
     n_representatives == as.integer(n_representatives),
-    is.character(stopwords),
-    !anyNA(stopwords),
+    is.character(stop_words),
+    !anyNA(stop_words),
     is.numeric(min_term_frequency),
     length(min_term_frequency) == 1L,
     is.finite(min_term_frequency),
@@ -800,12 +811,15 @@ sbert_topics <- function(
     distance = clustering$distance,
     stringsAsFactors = FALSE
   )
+  if (!is.null(metadata) && ncol(metadata) > 0L) {
+    documents <- cbind(documents, metadata)
+  }
   term_results <- topic_term_scores(
     text = unname(text),
     topic = clustering$topic,
     n_topics = as.integer(n_topics),
     n_terms = as.integer(n_terms),
-    stopwords = stopwords,
+    stop_words = stop_words,
     min_term_frequency = as.integer(min_term_frequency),
     min_token_length = as.integer(min_token_length),
     weighting = weighting,
@@ -844,6 +858,12 @@ sbert_topics <- function(
     as.integer(n_representatives)
   )
 
+  # The topic label belongs on every table that names a topic, so joining it
+  # back by hand is never necessary.
+  documents <- insert_topic_label(documents, topic_labels)
+  term_results$terms <- insert_topic_label(term_results$terms, topic_labels)
+  representatives <- insert_topic_label(representatives, topic_labels)
+
   structure(
     list(
       documents = documents,
@@ -867,7 +887,7 @@ sbert_topics <- function(
         weighting = weighting,
         reduce_frequent_words = reduce_frequent_words,
         stem = stem,
-        stopwords = stopwords,
+        stop_words = stop_words,
         seeds = if (is.null(seeds)) NULL else unname(
           if (is.list(seeds)) {
             vapply(seeds, function(seed) paste(seed, collapse = " "), character(1))

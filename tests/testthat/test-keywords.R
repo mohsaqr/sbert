@@ -29,19 +29,19 @@ with_keyword_mock <- function(expression) {
   expression
 }
 
-testthat::test_that("keywords are ranked by similarity to the document", {
+testthat::test_that("keywords are ranked by topic_similarity to the document", {
   result <- with_keyword_mock(
-    sbert_keywords(
+    keywords(
       c(pets = "Cats chase mice daily", money = "Stocks and bonds trade"),
       n = 3,
       ngrams = 1,
-      diversity = 0
+      topic_diversity = 0
     )
   )
   testthat::expect_s3_class(result, "data.frame")
   testthat::expect_identical(
     names(result),
-    c("document_id", "document_name", "rank", "keyword", "similarity")
+    c("document_id", "document_name", "rank", "keyword", "topic_similarity")
   )
   pets <- subset(result, document_name == "pets")
   money <- subset(result, document_name == "money")
@@ -50,34 +50,34 @@ testthat::test_that("keywords are ranked by similarity to the document", {
   testthat::expect_true(all(c("cats", "chase", "mice") %in% pets$keyword))
   testthat::expect_true(all(c("stocks", "bonds", "trade") %in% money$keyword))
   testthat::expect_identical(pets$rank, 1:3)
-  testthat::expect_true(all(diff(pets$similarity) <= 0))
+  testthat::expect_true(all(diff(pets$topic_similarity) <= 0))
 })
 
 testthat::test_that("bigram candidates are generated and rankable", {
   result <- with_keyword_mock(
-    sbert_keywords(
+    keywords(
       "Cats chase mice",
       n = 10,
       ngrams = 2,
-      diversity = 0
+      topic_diversity = 0
     )
   )
   testthat::expect_true("cats chase" %in% result$keyword)
   testthat::expect_true("chase mice" %in% result$keyword)
   # A two-hit bigram is closer to the all-animal document than any single
   # word mixed with direction (all are pure animal here, so bigrams tie with
-  # unigrams at similarity 1 and alphabetical order breaks the tie).
-  testthat::expect_equal(max(result$similarity), 1, tolerance = 1e-12)
+  # unigrams at topic_similarity 1 and alphabetical order breaks the tie).
+  testthat::expect_equal(max(result$topic_similarity), 1, tolerance = 1e-12)
 })
 
-testthat::test_that("diversity penalizes redundant keywords", {
+testthat::test_that("topic_diversity penalizes redundant keywords", {
   plain <- with_keyword_mock(
-    sbert_keywords("Cats chase mice with stocks", n = 2, ngrams = 1, diversity = 0)
+    keywords("Cats chase mice with stocks", n = 2, ngrams = 1, topic_diversity = 0)
   )
   diverse <- with_keyword_mock(
-    sbert_keywords("Cats chase mice with stocks", n = 2, ngrams = 1, diversity = 0.9)
+    keywords("Cats chase mice with stocks", n = 2, ngrams = 1, topic_diversity = 0.9)
   )
-  # Without diversity both picks are animal words; with strong diversity the
+  # Without topic_diversity both picks are animal words; with strong topic_diversity the
   # second pick flips to the finance word.
   testthat::expect_false("stocks" %in% plain$keyword)
   testthat::expect_true("stocks" %in% diverse$keyword)
@@ -85,22 +85,22 @@ testthat::test_that("diversity penalizes redundant keywords", {
 
 testthat::test_that("extraction is deterministic", {
   first <- with_keyword_mock(
-    sbert_keywords("Cats chase mice daily", n = 4, diversity = 0.3)
+    keywords("Cats chase mice daily", n = 4, topic_diversity = 0.3)
   )
   second <- with_keyword_mock(
-    sbert_keywords("Cats chase mice daily", n = 4, diversity = 0.3)
+    keywords("Cats chase mice daily", n = 4, topic_diversity = 0.3)
   )
   testthat::expect_identical(first, second)
 })
 
-testthat::test_that("stopwords and short tokens are excluded from candidates", {
+testthat::test_that("stop_words and short tokens are excluded from candidates", {
   result <- with_keyword_mock(
-    sbert_keywords(
+    keywords(
       "The cats of the market do chase mice",
       n = 10,
       ngrams = 1,
-      diversity = 0,
-      stopwords = sbert_stopwords(add = "market")
+      topic_diversity = 0,
+      stop_words = stop_words(add = "market")
     )
   )
   testthat::expect_false("the" %in% result$keyword)
@@ -110,15 +110,15 @@ testthat::test_that("stopwords and short tokens are excluded from candidates", {
 })
 
 testthat::test_that("invalid inputs are rejected", {
-  testthat::expect_error(sbert_keywords(character(0)))
-  testthat::expect_error(sbert_keywords(NA_character_))
-  testthat::expect_error(sbert_keywords("  "))
-  testthat::expect_error(sbert_keywords("fine text", n = 0))
-  testthat::expect_error(sbert_keywords("fine text", diversity = 1))
-  testthat::expect_error(sbert_keywords("fine text", ngrams = 0))
+  testthat::expect_error(keywords(character(0)))
+  testthat::expect_error(keywords(NA_character_))
+  testthat::expect_error(keywords("  "))
+  testthat::expect_error(keywords("fine text", n = 0))
+  testthat::expect_error(keywords("fine text", topic_diversity = 1))
+  testthat::expect_error(keywords("fine text", ngrams = 0))
   testthat::expect_error(
     with_keyword_mock(
-      sbert_keywords("of the and", ngrams = 1)
+      keywords("of the and", ngrams = 1)
     ),
     "candidates"
   )

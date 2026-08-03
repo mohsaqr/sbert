@@ -3,7 +3,7 @@
 # in a per-session cache so repeated calls never rebuild the runtime. Nothing
 # is ever downloaded without an explicit yes — interactively through a
 # one-time prompt, non-interactively through options(sbert.download = TRUE)
-# or a prior sbert_model_download() call.
+# or a prior model_download() call.
 
 .sbert_session <- new.env(parent = emptyenv())
 
@@ -13,7 +13,7 @@ clear_sbert_session <- function() {
 }
 
 ensure_sbert_model_installed <- function(name, cache_dir) {
-  if (all(sbert_model_status(cache_dir, model = name)$valid)) {
+  if (all(model_status(cache_dir, model = name)$valid)) {
     return(invisible(name))
   }
   manifest <- resolve_sbert_manifest(name)
@@ -29,7 +29,7 @@ ensure_sbert_model_installed <- function(name, cache_dir) {
       default = FALSE
     )
     if (isTRUE(answer)) {
-      sbert_model_download(name, cache_dir)
+      model_download(name, cache_dir)
       return(invisible(name))
     }
     stop(
@@ -38,13 +38,13 @@ ensure_sbert_model_installed <- function(name, cache_dir) {
     )
   }
   if (isTRUE(getOption("sbert.download"))) {
-    sbert_model_download(name, cache_dir, quiet = TRUE)
+    model_download(name, cache_dir, quiet = TRUE)
     return(invisible(name))
   }
   stop(
     sprintf(
       paste0(
-        "Model '%s' is not installed. Run sbert_model_download(\"%s\") once, ",
+        "Model '%s' is not installed. Run model_download(\"%s\") once, ",
         "or set options(sbert.download = TRUE) to allow this script to ",
         "download it."
       ),
@@ -57,7 +57,7 @@ ensure_sbert_model_installed <- function(name, cache_dir) {
 
 # Turn NULL (default model), a pinned model name, or a loaded model into a
 # loaded model, reusing the session cache for names.
-resolve_sbert_model <- function(model = NULL, cache_dir = sbert_cache_dir()) {
+resolve_sbert_model <- function(model = NULL, cache_dir = default_cache_dir()) {
   if (inherits(model, "sbert_model")) {
     return(model)
   }
@@ -71,7 +71,7 @@ resolve_sbert_model <- function(model = NULL, cache_dir = sbert_cache_dir()) {
     return(cached)
   }
   ensure_sbert_model_installed(name, cache_dir)
-  loaded <- sbert_load_model(name, cache_dir = cache_dir)
+  loaded <- load_model(name, cache_dir = cache_dir)
   assign(name, loaded, envir = .sbert_session)
   loaded
 }
@@ -80,8 +80,8 @@ resolve_sbert_model <- function(model = NULL, cache_dir = sbert_cache_dir()) {
   packageStartupMessage(sprintf(
     paste0(
       "sbert %s - sentence embeddings without Python.\n",
-      "  %d pinned models: sbert_models()  |  default: %s\n",
-      "  sbert_encode(text) just works; the first use of a model offers a\n",
+      "  %d pinned models: models()  |  default: %s\n",
+      "  encode(text) just works; the first use of a model offers a\n",
       "  one-time SHA-256-verified download (never without asking)."
     ),
     utils::packageVersion(pkgname),

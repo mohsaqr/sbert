@@ -29,8 +29,8 @@ testthat::test_that("feedback_translations matches the documented quirks", {
   )
 })
 
-testthat::test_that("dataset rows feed sbert_segment directly", {
-  segments <- sbert_segment(
+testthat::test_that("dataset rows feed segment directly", {
+  segments <- segment(
     utils::head(feedback_translations$translation, 5L),
     level = "sentence"
   )

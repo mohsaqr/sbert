@@ -34,10 +34,10 @@ ONNX Runtime. Python is not installed, imported, or called by the R pipeline.
 ## Load the verified model
 
 ```{r model}
-model_status <- sbert_model_status(cache_dir)
+model_status <- model_status(cache_dir)
 model_status[, c("file", "exists", "valid", "actual_bytes")]
 
-model <- sbert_load_model(cache_dir, backend = "cpu", threads = 1L)
+model <- load_model(cache_dir, backend = "cpu", threads = 1L)
 model
 ```
 
@@ -51,7 +51,7 @@ sentences <- c(
   "A bike stands next to a structure."
 )
 
-embedding_matrix <- sbert_encode(sentences, model, batch_size = 2L)
+embedding_matrix <- encode(sentences, model, batch_size = 2L)
 str(embedding_matrix)
 dim(embedding_matrix)
 summary(as.numeric(embedding_matrix))
@@ -61,10 +61,10 @@ anyNA(embedding_matrix)
 
 Each sentence becomes one 384-dimensional, L2-normalized vector.
 
-## Cosine similarity
+## Cosine topic_similarity
 
-```{r similarity}
-similarity_matrix <- sbert_similarity(embedding_matrix)
+```{r topic_similarity}
+similarity_matrix <- topic_similarity(embedding_matrix)
 round(similarity_matrix, 3)
 
 within_topic_similarity <- mean(c(

@@ -87,9 +87,9 @@ testthat::test_that("custom manifests round-trip and verify files", {
   testthat::expect_false(all(sbert:::verify_custom_files(model_directory, recovered)))
 })
 
-testthat::test_that("sbert_load_custom validates inputs without touching the network", {
-  testthat::expect_error(sbert_load_custom("no-slash"))
-  testthat::expect_error(sbert_load_custom("a/b", pooling = "max"))
-  testthat::expect_error(sbert_load_custom("a/b", max_length = 1L))
-  testthat::expect_error(sbert_load_custom(c("a/b", "c/d")))
+testthat::test_that("load_custom validates inputs without touching the network", {
+  testthat::expect_error(load_custom("no-slash"))
+  testthat::expect_error(load_custom("a/b", pooling = "max"))
+  testthat::expect_error(load_custom("a/b", max_length = 1L))
+  testthat::expect_error(load_custom(c("a/b", "c/d")))
 })

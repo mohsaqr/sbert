@@ -59,11 +59,11 @@ academic_filler <- c(
 )
 domain_ubiquitous <- c("students", "student", "programming", "program", "programs")
 stop_words <- unique(c(
-  sbert_stopwords(), search_keywords, academic_filler, domain_ubiquitous
+  stop_words(), search_keywords, academic_filler, domain_ubiquitous
 ))
 
 fit <- function(k) {
-  sbert_topics(
+  topics(
     abstracts,
     n_topics = k,
     embeddings = embeddings,
@@ -86,11 +86,11 @@ if (run_sweep) {
   candidate_k <- c(10L, 12L, 15L, 20L, 25L)
   sweep <- do.call(rbind, lapply(candidate_k, function(k) {
     model <- fit(k)
-    npmi <- sbert_coherence(model, "npmi", n_terms = 10L)
+    npmi <- coherence(model, "npmi", n_terms = 10L)
     data.frame(
       k = k,
       mean_npmi = round(attr(npmi, "mean_coherence"), 4),
-      diversity = round(sbert_diversity(model, 10L), 4),
+      diversity = round(topic_diversity(model, 10L), 4),
       min_size = min(model$topics$n_documents),
       max_size = max(model$topics$n_documents),
       stringsAsFactors = FALSE
@@ -108,7 +108,7 @@ cat("\nselected k:", final_k, "\n")
 model <- fit(final_k)
 saveRDS(model, file.path(output_directory, "mcse_gold_topic_model.rds"))
 
-coherence <- sbert_coherence(model, "npmi", n_terms = 10L)
+coherence <- coherence(model, "npmi", n_terms = 10L)
 topic_quality <- data.frame(
   topic = model$topics$topic,
   label = model$topics$label,
@@ -137,7 +137,7 @@ term_scores <- sbert:::topic_term_scores(
 counts <- term_scores$counts
 scores <- term_scores$scores
 vocabulary <- colnames(counts)
-colours <- sbert_palette(final_k)
+colours <- topic_palette(final_k)
 n_show <- 10L
 
 top_by <- function(values, present_weights, k) {

@@ -32,7 +32,7 @@ training set is unsound: units of different lengths occupy systematically
 different regions of the embedding space (length-induced embedding
 collapse, arXiv:2410.24200), handing the clustering a granularity axis to
 cut along, and every sentence is a substring of its document, so the same
-content would vote twice. `sbert_blend()` mixes *per unit* instead: each
+content would vote twice. `blend()` mixes *per unit* instead: each
 sentence keeps what it says beyond its abstract — its context-orthogonal
 residual — and inherits the rest of its direction from the abstract's
 embedding, renormalized to unit length.
@@ -48,12 +48,12 @@ training unit, verbatim.
 
 | Component | Verb | Question it answers |
 |---|---|---|
-| Context blending | `sbert_blend()` | How do sentences embed *in their paper's context*? |
-| Topic model | `sbert_topics()` | What recurring statements exist, and how common are they? |
-| Evaluation | `sbert_coherence()`, `sbert_diversity()` | Which topics are trustworthy? |
-| Frequent keywords | `sbert_beta()` | What does each topic talk about most? |
+| Context blending | `blend()` | How do sentences embed *in their paper's context*? |
+| Topic model | `topics()` | What recurring statements exist, and how common are they? |
+| Evaluation | `coherence()`, `topic_diversity()` | Which topics are trustworthy? |
+| Frequent keywords | `terms(sort_by = "beta")` | What does each topic talk about most? |
 | Distinctive keywords | `topic_model$terms` | What does it talk about that others do not? |
-| Evidence | `sbert_representatives()` | Which training sentences define it? |
+| Evidence | `representatives()` | Which training sentences define it? |
 
 ```{r library, eval=FALSE}
 library(sbert)
@@ -72,7 +72,7 @@ vectors, and collapsing them would throw the context away.
 mcse <- readRDS(mcse_path)
 usable <- subset(mcse, !is.na(AB) & !startsWith(trimws(AB), "[NO ABSTRACT"))
 abstracts <- unique(trimws(usable$AB))
-sentences <- sbert_segment(abstracts, level = "sentence", merge_below = 5)
+sentences <- segment(abstracts, level = "sentence", merge_below = 5)
 nrow(sentences)
 ```
 
@@ -87,8 +87,8 @@ sentence onto its abstract. This is the expensive step — two full encoding
 passes — and it is bit-identical on every run.
 
 ```{r embeddings}
-qa_minilm <- sbert_load_model("multi-qa-MiniLM-L6-cos-v1", threads = 8L)
-embeddings <- sbert_blend(
+qa_minilm <- load_model("multi-qa-MiniLM-L6-cos-v1", threads = 8L)
+embeddings <- blend(
   sentences,
   abstracts,
   model = qa_minilm,
@@ -102,7 +102,7 @@ The model is fitted on the blended embeddings — thirty centroids over
 sentences-in-context.
 
 ```{r model}
-topic_model <- sbert_topics(
+topic_model <- topics(
   sentences$text,
   n_topics = 30,
   embeddings = embeddings,
@@ -126,7 +126,7 @@ summary(topic_model)
 ```
 
 ```{r coherence}
-sbert_coherence(topic_model, measure = "npmi")
+coherence(topic_model, measure = "npmi")
 ```
 
 ## Topic sizes
@@ -140,12 +140,12 @@ plot(topic_model, type = "sizes")
 ```
 
 ```{r weighted}
-sbert_topic_sizes(topic_model)
+topic_sizes(topic_model)
 ```
 
 # Two keyword views, one topic
 
-`sbert_beta()` is the generative view — the words a topic uses most. The
+`terms(sort_by = "beta")` is the generative view — the words a topic uses most. The
 class-based TF-IDF scores in `topic_model$terms` are the discriminative
 view — the words a topic owns. Blending typically moves these lists closer
 to the *document-level* vocabulary than the pure sentence fit does: each
@@ -153,7 +153,7 @@ sentence drags half of its abstract's direction with it, so topics
 inherit paper-level subject terms alongside sentence-level phrasing.
 
 ```{r beta}
-beta <- sbert_beta(topic_model)
+beta <- terms(topic_model, n = NULL, sort_by = "beta")
 head(subset(beta, topic == 1), 8)
 ```
 
@@ -164,13 +164,13 @@ head(subset(topic_model$terms, topic == 1), 8)
 # Representative sentences from the training set
 
 The candidates are exactly the units the model was fitted on, under the
-blended embeddings it was fitted with. `sbert_representatives()` ranks
+blended embeddings it was fitted with. `representatives()` ranks
 them by *distinctiveness margin* — the gap between a sentence's own topic
 and the second-best — so the evidence is the statement that belongs to
 this topic and could belong to no other.
 
 ```{r representatives}
-evidence <- sbert_representatives(
+evidence <- representatives(
   topic_model,
   sentences$text,
   embeddings = embeddings
@@ -185,7 +185,7 @@ topic centroid (in the blended space) in parentheses. The sentences are
 the ground truth: the bars summarize, the sentences verify.
 
 ```{r panel-helper, include=FALSE}
-palette_colors <- sbert_palette(nrow(topic_model$topics))
+palette_colors <- topic_palette(nrow(topic_model$topics))
 
 draw_topic_panel <- function(model, beta, topic_id, color, path) {
   count_rows <- head(subset(beta, topic == topic_id), 8)
@@ -267,7 +267,7 @@ invisible(lapply(
 # Where to go from here
 
 `alpha` is the experiment: sweep it (0.25, 0.5, 0.75) with
-`sbert_coherence()` at fixed `n_topics` to see how much context this
+`coherence()` at fixed `n_topics` to see how much context this
 corpus wants — the blend at `alpha = 1` approaches a context-orthogonal
 fit, at `alpha = 0` a paper-level fit read through sentences. To place a
 new abstract into this map, segment it, blend against its own text, and

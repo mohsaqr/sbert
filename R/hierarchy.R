@@ -1,4 +1,4 @@
-# Topic hierarchy and reduction: agglomerative clustering of topic centroids
+# Topic topic_hierarchy and reduction: agglomerative clustering of topic centroids
 # (cosine distance, deterministic) exposes which topics are near-duplicates
 # and which are genuinely distinct, and cutting the tree merges a fitted
 # model down to fewer topics without re-running k-means.
@@ -34,9 +34,9 @@ hierarchy_tree <- function(object, method) {
 #' order they would fuse, and how far apart they are. Use it to judge
 #' whether a topic count is too fine (early merges at small heights are
 #' near-duplicate topics) and to choose a target count for
-#' [sbert_reduce()]. Deterministic — no sampling, no seed.
+#' [reduce_topics()]. Deterministic — no sampling, no seed.
 #'
-#' @param object An `sbert_topic_model` returned by [sbert_topics()].
+#' @param object An `sbert_topic_model` returned by [topics()].
 #' @param method Agglomeration method passed to [stats::hclust()]. Default
 #'   `"average"`.
 #' @return An `sbert_topic_hierarchy`: a list with `merges` (a tidy data
@@ -54,16 +54,16 @@ hierarchy_tree <- function(object, method) {
 #'   c(1, 0), c(0.95, 0.05), c(0.9, 0.1),
 #'   c(0, 1), c(0.05, 0.95), c(0.1, 0.9)
 #' )
-#' topics <- sbert_topics(text, 3, embeddings = embeddings, n_terms = 3)
-#' sbert_hierarchy(topics)
-sbert_hierarchy <- function(object, method = "average") {
+#' topics <- topics(text, 3, embeddings = embeddings, n_terms = 3)
+#' topic_hierarchy(topics)
+topic_hierarchy <- function(object, method = "average") {
   stopifnot(
     inherits(object, "sbert_topic_model"),
     is.character(method),
     length(method) == 1L
   )
   if (nrow(object$topics) < 2L) {
-    stop("A hierarchy needs at least two topics.", call. = FALSE)
+    stop("A topic_hierarchy needs at least two topics.", call. = FALSE)
   }
   tree <- hierarchy_tree(object, method)
   branch_name <- function(node) {
@@ -100,7 +100,7 @@ print.sbert_topic_hierarchy <- function(x, ...) {
 #' @export
 plot.sbert_topic_hierarchy <- function(
   x,
-  main = "Topic hierarchy",
+  main = "Topic topic_hierarchy",
   cex = 0.8,
   ...
 ) {
@@ -123,15 +123,15 @@ plot.sbert_topic_hierarchy <- function(
 
 #' Reduce a Fitted Topic Model to Fewer Topics
 #'
-#' Cuts the topic hierarchy (see [sbert_hierarchy()]) at the requested
+#' Cuts the topic topic_hierarchy (see [topic_hierarchy()]) at the requested
 #' count and rebuilds the model: documents keep their cluster memberships
 #' (merged, never re-clustered), centroids are recomputed from the member
 #' documents, and terms, labels, sizes, and representatives are derived
 #' afresh for the merged topics. The result is a full `sbert_topic_model`
-#' — every downstream verb (`summary()`, `sbert_coherence()`, `predict()`,
-#' [sbert_representatives()], plots) works unchanged.
+#' — every downstream verb (`summary()`, `coherence()`, `predict()`,
+#' [representatives()], plots) works unchanged.
 #'
-#' @param object An `sbert_topic_model` returned by [sbert_topics()].
+#' @param object An `sbert_topic_model` returned by [topics()].
 #' @param n_topics Target number of topics, at least 2 and below the
 #'   current count.
 #' @param embeddings The document embedding matrix used to fit `object`.
@@ -150,12 +150,12 @@ plot.sbert_topic_hierarchy <- function(
 #'   c(1, 0), c(0.95, 0.05), c(0.9, 0.1),
 #'   c(0, 1), c(0.05, 0.95), c(0.1, 0.9)
 #' )
-#' topics <- sbert_topics(
+#' topics <- topics(
 #'   text, 3,
 #'   embeddings = embeddings, n_terms = 3, keep_embeddings = TRUE
 #' )
-#' sbert_reduce(topics, 2)
-sbert_reduce <- function(object, n_topics, embeddings = NULL, method = "average") {
+#' reduce_topics(topics, 2)
+reduce_topics <- function(object, n_topics, embeddings = NULL, method = "average") {
   stopifnot(
     inherits(object, "sbert_topic_model"),
     is.numeric(n_topics),
@@ -187,11 +187,11 @@ sbert_reduce <- function(object, n_topics, embeddings = NULL, method = "average"
     nrow(embeddings) == nrow(object$documents)
   )
 
-  membership <- stats::cutree(hierarchy_tree(object, method), k = n_topics)
+  topic_membership <- stats::cutree(hierarchy_tree(object, method), k = n_topics)
   normalized <- normalize_rows(embeddings)
-  merged_topic <- as.integer(membership[object$documents$topic])
+  merged_topic <- as.integer(topic_membership[object$documents$topic])
   # Package convention: topic 1 is the largest (ties broken by first
-  # appearance), matching sbert_topics().
+  # appearance), matching topics().
   first_sizes <- tabulate(merged_topic, nbins = n_topics)
   topic_order <- order(-first_sizes, seq_len(n_topics))
   renumbered <- integer(n_topics)
@@ -226,7 +226,7 @@ sbert_reduce <- function(object, n_topics, embeddings = NULL, method = "average"
     topic = documents$topic,
     n_topics = n_topics,
     n_terms = settings$n_terms,
-    stopwords = settings$stopwords,
+    stop_words = settings$stop_words,
     min_term_frequency = settings$min_term_frequency,
     min_token_length = settings$min_token_length,
     weighting = settings$weighting,

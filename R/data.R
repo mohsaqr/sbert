@@ -7,7 +7,7 @@
 #' source languages include Czech, Slovak, Polish, German, Hungarian,
 #' Romanian, Ukrainian, Russian, Mongolian, and Vietnamese. The corpus is a
 #' realistic, quirk-preserving benchmark for the package's embedding,
-#' similarity, segmentation, and topic-modeling workflow: translations repeat
+#' topic_similarity, segmentation, and topic-modeling workflow: translations repeat
 #' (templates such as "Very good!" appear many times), a small number of rows
 #' were never translated (the translation still contains Cyrillic text), and a
 #' few source messages are identical to their translation.
@@ -28,7 +28,7 @@
 #' @examples
 #' head(feedback_translations)
 #'
-#' sbert_segment(
+#' segment(
 #'   head(feedback_translations$translation, 5),
 #'   level = "sentence"
 #' )

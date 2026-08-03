@@ -23,3 +23,7 @@ outputs/
 
 # OS noise
 .DS_Store
+
+# knitr caches from analysis renders
+*_cache/
+*_files/

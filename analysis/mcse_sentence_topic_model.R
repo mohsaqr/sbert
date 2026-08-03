@@ -8,7 +8,7 @@ source("analysis/segment_text.R")
 k_topics <- as.integer(Sys.getenv("SENT_K", unset = "29"))
 doc_model <- readRDS("outputs/mcse_gold_topics/mcse_gold_topic_model.rds")
 abstracts <- doc_model$documents$text
-sbert_model <- sbert_load_model("/private/tmp/sbert-package-download-test", threads = 2L)
+sbert_model <- load_model("/private/tmp/sbert-package-download-test", threads = 2L)
 
 output_directory <- file.path("outputs", "mcse_sentence_topics")
 review_directory <- file.path("tmp", "mcse_sentence_review")
@@ -28,7 +28,7 @@ academic_filler <- c("paper","papers","article","articles","study","studies",
  "concept","concepts","method","methods","methodology","also","however",
  "different","various")
 domain_ubiquitous <- c("students","student","programming","program","programs")
-stop_words <- unique(c(sbert_stopwords(), search_keywords, academic_filler, domain_ubiquitous))
+stop_words <- unique(c(stop_words(), search_keywords, academic_filler, domain_ubiquitous))
 
 # ---- 1. sentences + document mapping ---------------------------------------
 sentence_lists <- lapply(abstracts, function(text) {
@@ -46,13 +46,13 @@ if (file.exists(embedding_path)) {
   stopifnot(identical(cached$sentences, sentences))
   sentence_embeddings <- cached$embeddings
 } else {
-  sentence_embeddings <- sbert_encode(sentences, sbert_model, batch_size = 128L, normalize = TRUE)
+  sentence_embeddings <- encode(sentences, sbert_model, batch_size = 128L, normalize = TRUE)
   saveRDS(list(sentences = sentences, embeddings = sentence_embeddings), embedding_path, compress = "xz")
 }
 cat("embeddings:", paste(dim(sentence_embeddings), collapse = " x "), "\n")
 
 # ---- 3. sentence-level topic model (fresh deterministic k-means) ------------
-sent_model <- sbert_topics(
+sent_model <- topics(
   sentences, n_topics = k_topics, embeddings = sentence_embeddings,
   iter_max = 100L, n_terms = 15L, n_representatives = 6L,
   stopwords = stop_words, min_term_frequency = 20L, min_token_length = 3L,
@@ -60,7 +60,7 @@ sent_model <- sbert_topics(
   keep_embeddings = TRUE
 )
 saveRDS(sent_model, file.path(output_directory, "sentence_topic_model.rds"))
-coherence <- sbert_coherence(sent_model, "npmi", n_terms = 10L)
+coherence <- coherence(sent_model, "npmi", n_terms = 10L)
 labels <- sent_model$topics$label
 
 # ---- 4. beta (p(w|topic)) + c-TF-IDF (FREX) from sentence-topic counts ------

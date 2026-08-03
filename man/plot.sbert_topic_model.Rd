@@ -8,13 +8,13 @@
   x,
   type = c("sizes", "terms", "map"),
   n_terms = 8L,
-  colors = sbert_palette(nrow(x$topics)),
+  colors = topic_palette(nrow(x$topics)),
   max_points = 1500L,
   ...
 )
 }
 \arguments{
-\item{x}{An `sbert_topic_model` returned by [sbert_topics()].}
+\item{x}{An `sbert_topic_model` returned by [topics()].}
 
 \item{type}{One of `"sizes"` (document count per topic), `"terms"` (top
 class-based TF-IDF terms per topic), or `"map"` (a two-dimensional
@@ -23,7 +23,7 @@ The `"map"` view requires a model fitted with `keep_embeddings = TRUE`.}
 
 \item{n_terms}{Number of top terms shown per panel when `type = "terms"`.}
 
-\item{colors}{Optional vector of topic colours; defaults to [sbert_palette()].}
+\item{colors}{Optional vector of topic colours; defaults to [topic_palette()].}
 
 \item{max_points}{Maximum documents drawn when `type = "map"`. Larger corpora
 are thinned to a deterministic stratified subsample so the classical-MDS
@@ -45,7 +45,7 @@ text <- c(
   "Stocks and bonds trade", "Markets price shares"
 )
 embeddings <- rbind(c(1, 0), c(0.9, 0.1), c(0, 1), c(0.1, 0.9))
-topics <- sbert_topics(text, 2, embeddings = embeddings, keep_embeddings = TRUE)
+topics <- topics(text, 2, embeddings = embeddings, keep_embeddings = TRUE)
 plot(topics, type = "sizes")
 plot(topics, type = "terms")
 plot(topics, type = "map")

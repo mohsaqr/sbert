@@ -109,7 +109,7 @@ fake_static_model <- function() {
 }
 
 testthat::test_that("static encoding is a token-lookup mean", {
-  raw <- sbert_encode(
+  raw <- encode(
     c("cats mice", "stocks", "cats"),
     model = fake_static_model(),
     normalize = FALSE
@@ -119,7 +119,7 @@ testthat::test_that("static encoding is a token-lookup mean", {
     rbind(c(0.5, 0.5), c(3, 4), c(1, 0)),
     tolerance = 1e-12
   )
-  normalized <- sbert_encode(
+  normalized <- encode(
     c("cats mice", "stocks"),
     model = fake_static_model()
   )
@@ -131,7 +131,7 @@ testthat::test_that("static encoding is a token-lookup mean", {
 })
 
 testthat::test_that("unknown-token documents embed as zero vectors", {
-  result <- sbert_encode(
+  result <- encode(
     c("zebra unknown", "cats"),
     model = fake_static_model()
   )
@@ -147,7 +147,7 @@ testthat::test_that("potion-base-8M is registered as a static model", {
     manifest$artifacts$file,
     c("model.safetensors", "tokenizer.json", "config.json")
   )
-  menu <- sbert_models(detail = TRUE)
+  menu <- models(detail = TRUE)
   testthat::expect_true("potion-base-8M" %in% menu$model)
   testthat::expect_identical(
     menu$engine[menu$model == "potion-base-8M"],

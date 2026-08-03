@@ -21,7 +21,7 @@ evaluation_test_embeddings <- function() {
 }
 
 evaluation_test_model <- function(...) {
-  sbert_topics(
+  topics(
     evaluation_test_corpus(),
     3L,
     embeddings = evaluation_test_embeddings(),
@@ -78,8 +78,8 @@ testthat::test_that("UMass and NPMI match a hand calculation", {
 
 testthat::test_that("coherence is tidy, deterministic, and topic-aligned", {
   model <- evaluation_test_model()
-  coherence_one <- sbert_coherence(model, measure = "npmi", n_terms = 4L)
-  coherence_two <- sbert_coherence(model, measure = "npmi", n_terms = 4L)
+  coherence_one <- coherence(model, measure = "npmi", n_terms = 4L)
+  coherence_two <- coherence(model, measure = "npmi", n_terms = 4L)
 
   testthat::expect_identical(coherence_one, coherence_two)
   testthat::expect_identical(
@@ -93,7 +93,7 @@ testthat::test_that("coherence is tidy, deterministic, and topic-aligned", {
     attr(coherence_one, "mean_coherence"),
     mean(coherence_one$coherence)
   )
-  testthat::expect_true(all(sbert_coherence(model, "umass")$measure == "umass"))
+  testthat::expect_true(all(coherence(model, "umass")$measure == "umass"))
 })
 
 testthat::test_that("NPMI stays finite and bounded at the co-occurrence limits", {
@@ -137,7 +137,7 @@ testthat::test_that("single-term topics yield NA coherence, not an error", {
   testthat::expect_true(is.na(na_score))
 })
 
-testthat::test_that("diversity is the unique-term proportion", {
+testthat::test_that("topic_diversity is the unique-term proportion", {
   model <- evaluation_test_model()
   pooled <- unlist(
     lapply(
@@ -151,8 +151,8 @@ testthat::test_that("diversity is the unique-term proportion", {
   )
   expected <- length(unique(pooled)) / length(pooled)
 
-  testthat::expect_equal(sbert_diversity(model, 4L), expected)
-  testthat::expect_true(sbert_diversity(model, 4L) > 0 && sbert_diversity(model, 4L) <= 1)
+  testthat::expect_equal(topic_diversity(model, 4L), expected)
+  testthat::expect_true(topic_diversity(model, 4L) > 0 && topic_diversity(model, 4L) <= 1)
 })
 
 testthat::test_that("summary prints a report and returns a tidy quality table", {
@@ -161,7 +161,7 @@ testthat::test_that("summary prints a report and returns a tidy quality table", 
   output <- utils::capture.output(quality <- summary(model, measure = "npmi", n_terms = 4L))
 
   testthat::expect_true(any(grepl("Semantic topic model summary", output)))
-  testthat::expect_true(any(grepl("topic diversity", output)))
+  testthat::expect_true(any(grepl("topic topic_diversity", output)))
   testthat::expect_identical(
     names(quality),
     c("topic", "label", "n_documents", "proportion", "coherence")
@@ -172,9 +172,9 @@ testthat::test_that("summary prints a report and returns a tidy quality table", 
 
 testthat::test_that("evaluation rejects malformed inputs", {
   model <- evaluation_test_model()
-  testthat::expect_error(sbert_coherence(model, measure = "cosine"))
-  testthat::expect_error(sbert_coherence(model, n_terms = 0))
-  testthat::expect_error(sbert_coherence(model, smoothing = -1))
-  testthat::expect_error(sbert_coherence(list(), "npmi"))
-  testthat::expect_error(sbert_diversity(model, n_terms = 1.5))
+  testthat::expect_error(coherence(model, measure = "cosine"))
+  testthat::expect_error(coherence(model, n_terms = 0))
+  testthat::expect_error(coherence(model, smoothing = -1))
+  testthat::expect_error(coherence(list(), "npmi"))
+  testthat::expect_error(topic_diversity(model, n_terms = 1.5))
 })

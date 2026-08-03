@@ -45,9 +45,9 @@ deliberately different angles:
 
 | Component | Verb | Question it answers |
 |---|---|---|
-| Topic model | `sbert_topics()` | What groups exist, and how big are they? |
-| Evaluation | `sbert_coherence()`, `sbert_diversity()` | Which topics are trustworthy? |
-| Frequent keywords | `sbert_beta()` | What does each topic talk about most? |
+| Topic model | `topics()` | What groups exist, and how big are they? |
+| Evaluation | `coherence()`, `topic_diversity()` | Which topics are trustworthy? |
+| Frequent keywords | `terms(sort_by = "beta")` | What does each topic talk about most? |
 | Distinctive keywords | `topic_model$terms` | What does each topic talk about that others do not? |
 | Evidence | `topic_model$representatives` | Do real messages support the label? |
 
@@ -61,7 +61,7 @@ English embedder). The menu, with each model's dimension, input limit,
 language coverage, and download size:
 
 ```{r menu}
-sbert_models()
+models()
 ```
 
 # The corpus, deduplicated
@@ -69,31 +69,31 @@ sbert_models()
 Embedding the same string twice wastes computation and — more importantly —
 lets high-frequency templates dominate the clustering geometry: one hundred
 copies of "Very good!" act as a single point with one hundred times the
-pull on a centroid. `sbert_dedupe()` therefore collapses the corpus to its
+pull on a centroid. `dedupe()` therefore collapses the corpus to its
 distinct non-blank messages (each kind votes once) while keeping the row
 frequencies, which return as weights when sizes are reported.
 
 ```{r data}
-corpus <- sbert_dedupe(feedback_translations$translation)
+corpus <- dedupe(feedback_translations$translation)
 nrow(corpus)
 ```
 
 Three explicit steps turn the corpus into numbers, and each exists for a
 reason. Called without arguments, every model function uses the package
 default, `all-MiniLM-L6-v2` — a 6-layer distilled English model that is the
-field's standard quality-per-megabyte starter (`sbert_models()` lists the
-other twelve pinned options). `sbert_model_download()` is the only step that
+field's standard quality-per-megabyte starter (`models()` lists the
+other twelve pinned options). `model_download()` is the only step that
 touches the network: it fetches the model's ONNX graph (90.4 MB) and
 tokenizer into the local cache, locked to one immutable Hugging Face
 revision and refused
 unless every byte matches the SHA-256 hashes pinned inside the package — so
 the model you run today is provably the model you run next year. Once the
-files are installed the call is a no-op. `sbert_load_model()` then builds
+files are installed the call is a no-op. `load_model()` then builds
 the in-memory model from those verified files: the Rust tokenizer, the ONNX
 inference session, and the model's own settings (384 dimensions, 256-token
 limit, mean pooling).
 
-`sbert_encode()` does the actual work: each message is tokenized into word
+`encode()` does the actual work: each message is tokenized into word
 pieces, run through the network (one vector per token), mean-pooled into one
 vector per message with padding masked out, and L2-normalized. The
 normalization is what makes everything downstream cheap — on unit vectors,
@@ -105,9 +105,9 @@ why this tutorial recomputes it (about ten seconds) instead of shipping a
 cache file.
 
 ```{r embeddings}
-sbert_model_download()
-minilm <- sbert_load_model()
-embeddings <- sbert_encode(corpus$text, model = minilm)
+model_download()
+minilm <- load_model()
+embeddings <- encode(corpus$text, model = minilm)
 ```
 
 # The six-topic model
@@ -118,7 +118,7 @@ granularity depends on what the analysis is *for* (here: an editorial review
 of feedback types, where six kinds are actionable and sixty are not).
 
 ```{r model}
-topic_model <- sbert_topics(
+topic_model <- topics(
   corpus$text,
   n_topics = 6,
   embeddings = embeddings,
@@ -140,7 +140,7 @@ summary(topic_model)
 ```
 
 ```{r coherence}
-sbert_coherence(topic_model, measure = "npmi")
+coherence(topic_model, measure = "npmi")
 ```
 
 Carry these numbers into the per-topic panels below: the topics with the
@@ -153,7 +153,7 @@ than its keywords.
 
 The model counts *distinct* messages, but the application sent some messages
 hundreds of times, so editorial priority follows the weighted share, not the
-distinct share. `sbert_topic_sizes()` reports both scales in one call; the
+distinct share. `topic_sizes()` reports both scales in one call; the
 gap between `proportion` and `weighted_share` measures how template-driven
 each topic is — a topic whose weighted share far exceeds its distinct share
 is a small repertoire of heavily reused messages.
@@ -163,12 +163,12 @@ plot(topic_model, type = "sizes")
 ```
 
 ```{r weighted}
-sbert_topic_sizes(topic_model, weights = corpus$n)
+topic_sizes(topic_model, weights = corpus$n)
 ```
 
 # Two keyword views, one topic
 
-`sbert_beta()` returns the empirical probability of each word given the topic
+`terms(sort_by = "beta")` returns the empirical probability of each word given the topic
 — the *generative* view, dominated by whatever the topic says most often.
 The class-based TF-IDF scores in `topic_model$terms` are the *discriminative*
 view: they promote words this topic uses and others do not, and demote the
@@ -179,7 +179,7 @@ disagree, the counts list is telling you about the corpus and only the
 TF-IDF list about the topic.
 
 ```{r beta}
-beta <- sbert_beta(topic_model)
+beta <- terms(topic_model, n = NULL, sort_by = "beta")
 head(subset(beta, topic == 1), 8)
 ```
 
@@ -195,7 +195,7 @@ center). The sentences are the ground truth here: the bars summarize, the
 sentences verify.
 
 ```{r panel-helper, include=FALSE}
-palette_colors <- sbert_palette(nrow(topic_model$topics))
+palette_colors <- topic_palette(nrow(topic_model$topics))
 
 draw_topic_panel <- function(model, beta, topic_id, color, path) {
   count_rows <- head(subset(beta, topic == topic_id), 8)
@@ -278,12 +278,12 @@ invisible(lapply(
 
 The model built here is reusable, not just describable. `predict()` assigns
 any new feedback message to these six topics without refitting;
-`sbert_membership()` replaces the hard assignment with graded probabilities
-when a message sits between topics; and `sbert_gamma()` combined with
-`sbert_segment()` shows when a single multi-sentence message spans several
+`topic_membership()` replaces the hard assignment with graded probabilities
+when a message sits between topics; and `topic_gamma()` combined with
+`segment()` shows when a single multi-sentence message spans several
 feedback types. For multilingual work on the *source* messages (the
 `feedback` column spans ten languages), change one argument —
-`sbert_encode(corpus$text, model = "paraphrase-multilingual-MiniLM-L12-v2")`
+`encode(corpus$text, model = "paraphrase-multilingual-MiniLM-L12-v2")`
 — and the rest of this document runs unchanged.
 
 ```{r session, echo=FALSE}

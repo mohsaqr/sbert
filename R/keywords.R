@@ -1,13 +1,13 @@
 # Embedding-based keyword extraction (the KeyBERT design): candidate words
 # and phrases come from the document itself, are embedded with the same model
-# as the document, and are ranked by cosine similarity to the document vector.
+# as the document, and are ranked by cosine topic_similarity to the document vector.
 # Maximal marginal relevance trades relevance against redundancy so the
 # selected keywords do not all say the same thing.
 
 # Internal encoding seam so tests can substitute a deterministic embedder.
 encode_keyword_texts <- function(texts, model, batch_size) {
   model <- resolve_sbert_model(model)
-  sbert_encode(texts, model = model, batch_size = batch_size)
+  encode(texts, model = model, batch_size = batch_size)
 }
 
 # Consecutive-token n-grams of length 1..max_length over one token sequence.
@@ -35,9 +35,9 @@ token_ngrams <- function(tokens, max_length) {
 }
 
 # Maximal marginal relevance: iteratively pick the candidate maximizing
-# (1 - diversity) * relevance - diversity * max-similarity-to-already-chosen.
+# (1 - topic_diversity) * relevance - topic_diversity * max-topic_similarity-to-already-chosen.
 # Candidates arrive alphabetically sorted, so which.max ties are deterministic.
-mmr_select <- function(relevance, candidate_similarity, n, diversity) {
+mmr_select <- function(relevance, candidate_similarity, n, topic_diversity) {
   n_candidates <- length(relevance)
   picks <- min(n, n_candidates)
   state <- Reduce(
@@ -55,7 +55,7 @@ mmr_select <- function(relevance, candidate_similarity, n, diversity) {
           1L,
           max
         )
-        (1 - diversity) * relevance[available] - diversity * redundancy
+        (1 - topic_diversity) * relevance[available] - topic_diversity * redundancy
       }
       pick <- available[which.max(scores)]
       list(
@@ -71,7 +71,7 @@ mmr_select <- function(relevance, candidate_similarity, n, diversity) {
 
 #' Extract Keywords from Documents by Embedding Similarity
 #'
-#' Ranks each document's own words and phrases by cosine similarity between
+#' Ranks each document's own words and phrases by cosine topic_similarity between
 #' their embeddings and the document embedding, computed with the same model,
 #' and selects the top `n` by maximal marginal relevance so the keywords are
 #' relevant without being redundant (the KeyBERT design).
@@ -88,32 +88,32 @@ mmr_select <- function(relevance, candidate_similarity, n, diversity) {
 #' @param n Maximum keywords returned per document. Default `10`.
 #' @param ngrams Maximum phrase length in tokens. Default `2` (unigrams and
 #'   bigrams).
-#' @param diversity Maximal-marginal-relevance trade-off in `[0, 1)`: `0`
-#'   ranks purely by similarity, larger values penalize keywords similar to
+#' @param topic_diversity Maximal-marginal-relevance trade-off in `[0, 1)`: `0`
+#'   ranks purely by topic_similarity, larger values penalize keywords similar to
 #'   ones already selected. Default `0.3`.
-#' @param stopwords Words excluded from candidates. Defaults to
-#'   [sbert_stopwords()].
+#' @param stop_words Words excluded from candidates. Defaults to
+#'   [stop_words()].
 #' @param min_token_length Minimum character length of a candidate token.
 #'   Default `3`.
 #' @param batch_size Number of texts encoded per model call. Default `32`.
 #' @return A base data frame with one row per keyword and columns
-#'   `document_id`, `document_name`, `rank`, `keyword`, and `similarity`
-#'   (cosine similarity between the keyword and its document).
+#'   `document_id`, `document_name`, `rank`, `keyword`, and `topic_similarity`
+#'   (cosine topic_similarity between the keyword and its document).
 #' @export
 #' @examples
 #' \dontrun{
-#' sbert_keywords(
+#' keywords(
 #'   "Transition network analysis models learning event sequences.",
 #'   n = 5
 #' )
 #' }
-sbert_keywords <- function(
+keywords <- function(
   text,
   model = NULL,
   n = 10L,
   ngrams = 2L,
-  diversity = 0.3,
-  stopwords = sbert_stopwords(),
+  topic_diversity = 0.3,
+  stop_words = default_stop_words(),
   min_token_length = 3L,
   batch_size = 32L
 ) {
@@ -132,13 +132,13 @@ sbert_keywords <- function(
     is.finite(ngrams),
     ngrams >= 1,
     ngrams == as.integer(ngrams),
-    is.numeric(diversity),
-    length(diversity) == 1L,
-    is.finite(diversity),
-    diversity >= 0,
-    diversity < 1,
-    is.character(stopwords),
-    !anyNA(stopwords)
+    is.numeric(topic_diversity),
+    length(topic_diversity) == 1L,
+    is.finite(topic_diversity),
+    topic_diversity >= 0,
+    topic_diversity < 1,
+    is.character(stop_words),
+    !anyNA(stop_words)
   )
 
   document_names <- names(text)
@@ -147,7 +147,7 @@ sbert_keywords <- function(
   }
   token_lists <- tokenize_topic_documents(
     unname(text),
-    stopwords = stopwords,
+    stop_words = stop_words,
     min_token_length = min_token_length
   )
   candidate_lists <- lapply(token_lists, token_ngrams, max_length = ngrams)
@@ -155,7 +155,7 @@ sbert_keywords <- function(
   if (length(all_candidates) == 0L) {
     stop(
       "No keyword candidates survive tokenization; ",
-      "lower min_token_length or supply fewer stopwords.",
+      "lower min_token_length or supply fewer stop_words.",
       call. = FALSE
     )
   }
@@ -184,7 +184,7 @@ sbert_keywords <- function(
         relevance = relevance,
         candidate_similarity = tcrossprod(vectors),
         n = n,
-        diversity = diversity
+        topic_diversity = topic_diversity
       )
       data.frame(
         document_id = rep.int(document_index, length(chosen)),
@@ -194,7 +194,7 @@ sbert_keywords <- function(
         ),
         rank = seq_along(chosen),
         keyword = candidates[chosen],
-        similarity = relevance[chosen],
+        topic_similarity = relevance[chosen],
         stringsAsFactors = FALSE
       )
     }

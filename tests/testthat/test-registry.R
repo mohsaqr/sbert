@@ -1,5 +1,5 @@
-testthat::test_that("sbert_models lists every pinned model tidily", {
-  models <- sbert_models(detail = TRUE)
+testthat::test_that("models lists every pinned model tidily", {
+  models <- models(detail = TRUE)
 
   testthat::expect_s3_class(models, "data.frame")
   testthat::expect_identical(
@@ -10,7 +10,7 @@ testthat::test_that("sbert_models lists every pinned model tidily", {
     )
   )
   testthat::expect_identical(
-    names(sbert_models()),
+    names(models()),
     c("model", "dimensions", "max_tokens", "languages", "size_mb")
   )
   testthat::expect_gte(nrow(models), 4L)
@@ -76,7 +76,7 @@ testthat::test_that("manifest resolution accepts short names and full ids", {
 testthat::test_that("model-specific cache directories do not collide", {
   cache_dir <- tempfile("registry-cache-")
   directories <- vapply(
-    sbert_models(detail = TRUE)$model,
+    models(detail = TRUE)$model,
     function(name) {
       sbert:::sbert_model_directory(
         cache_dir,

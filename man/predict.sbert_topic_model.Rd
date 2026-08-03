@@ -7,17 +7,17 @@
 \method{predict}{sbert_topic_model}(object, text, model = NULL, embeddings = NULL, batch_size = 32L, ...)
 }
 \arguments{
-\item{object}{A fitted [sbert_topics()] model.}
+\item{object}{A fitted [topics()] model.}
 
 \item{text}{Character vector of new documents.}
 
-\item{model}{A loaded [sbert_model][sbert_load_model()], a pinned model
+\item{model}{A loaded [sbert_model][load_model()], a pinned model
 name, or `NULL` for the default model; ignored when `embeddings` are
 supplied. The embedding dimension must match the fitted model.}
 
 \item{embeddings}{Optional numeric matrix with one row per document.}
 
-\item{batch_size}{Batch size passed to [sbert_encode()] when `model` is
+\item{batch_size}{Batch size passed to [encode()] when `model` is
 used.}
 
 \item{...}{Unused; included for S3 compatibility.}
@@ -39,6 +39,6 @@ text <- c(
   "Stocks and bonds trade", "Markets price shares"
 )
 embeddings <- rbind(c(1, 0), c(0.9, 0.1), c(0, 1), c(0.1, 0.9))
-fitted <- sbert_topics(text, 2, embeddings = embeddings)
+fitted <- topics(text, 2, embeddings = embeddings)
 predict(fitted, "Bulls and bears move markets", embeddings = rbind(c(0.2, 0.8)))
 }

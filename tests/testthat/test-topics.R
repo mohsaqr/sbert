@@ -21,20 +21,20 @@ topic_test_embeddings <- function() {
 }
 
 testthat::test_that("built-in stop words are stable and validated", {
-  words <- sbert_stopwords()
+  words <- stop_words()
 
   testthat::expect_type(words, "character")
   testthat::expect_true(all(c("a", "and", "the", "with") %in% words))
   testthat::expect_identical(words, sort(unique(words)))
   testthat::expect_false(anyNA(words))
   testthat::expect_identical(anyDuplicated(words), 0L)
-  testthat::expect_error(sbert_stopwords("fi"), "Only the built-in English")
+  testthat::expect_error(stop_words("fi"), "Only the built-in English")
 })
 
 testthat::test_that("topic tokenization handles Unicode and filtering", {
   tokens <- sbert:::tokenize_topic_documents(
     c("Café déjà vu — 東京", "Rock-n-roll isn\u2019t dead and buried"),
-    stopwords = c("and", "buried"),
+    stop_words = c("and", "buried"),
     min_token_length = 2L
   )
 
@@ -52,7 +52,7 @@ testthat::test_that("class TF-IDF matches the audited numeric fixture", {
     topic = as.integer(c(1, 1, 2)),
     n_topics = 2L,
     n_terms = 3L,
-    stopwords = character(),
+    stop_words = character(),
     min_term_frequency = 1L,
     min_token_length = 1L
   )
@@ -153,7 +153,7 @@ testthat::test_that("representatives are ranked and capped per topic", {
 })
 
 testthat::test_that("topic model output is complete and deterministic", {
-  result_one <- sbert_topics(
+  result_one <- topics(
     topic_test_corpus(),
     3L,
     embeddings = topic_test_embeddings(),
@@ -161,7 +161,7 @@ testthat::test_that("topic model output is complete and deterministic", {
     n_representatives = 2L,
     keep_embeddings = TRUE
   )
-  result_two <- sbert_topics(
+  result_two <- topics(
     topic_test_corpus(),
     3L,
     embeddings = topic_test_embeddings(),
@@ -208,7 +208,7 @@ testthat::test_that("model-backed topics forward encoding arguments", {
   )
   text <- c("cats mice", "dogs balls", "stocks bonds", "market shares")
 
-  result <- sbert_topics(
+  result <- topics(
     text,
     2L,
     model = model,
@@ -226,23 +226,155 @@ testthat::test_that("model-backed topics forward encoding arguments", {
 testthat::test_that("topic modeling rejects malformed inputs", {
   embeddings <- topic_test_embeddings()
 
-  testthat::expect_error(sbert_topics(character(), 2L, embeddings = embeddings))
-  testthat::expect_error(sbert_topics(c("ok", NA_character_), 2L, embeddings = embeddings[1:2, ]))
-  testthat::expect_error(sbert_topics(c("ok", " "), 2L, embeddings = embeddings[1:2, ]), "blank")
-  testthat::expect_error(sbert_topics(topic_test_corpus(), 1L, embeddings = embeddings))
-  testthat::expect_error(sbert_topics(topic_test_corpus(), 7L, embeddings = embeddings))
+  testthat::expect_error(topics(character(), 2L, embeddings = embeddings))
+  testthat::expect_error(topics(c("ok", NA_character_), 2L, embeddings = embeddings[1:2, ]))
+  testthat::expect_error(topics(c("ok", " "), 2L, embeddings = embeddings[1:2, ]), "blank")
+  testthat::expect_error(topics(topic_test_corpus(), 1L, embeddings = embeddings))
+  testthat::expect_error(topics(topic_test_corpus(), 7L, embeddings = embeddings))
   testthat::expect_error(
-    sbert_topics(topic_test_corpus(), 3L, model = fake_sbert_model(), embeddings = embeddings),
+    topics(topic_test_corpus(), 3L, model = fake_sbert_model(), embeddings = embeddings),
     "not both"
   )
   testthat::expect_error(
-    sbert_topics(topic_test_corpus(), 3L, embeddings = embeddings[1:5, ]),
+    topics(topic_test_corpus(), 3L, embeddings = embeddings[1:5, ]),
     "one row per document"
   )
   non_finite <- embeddings
   non_finite[1L, 1L] <- Inf
   testthat::expect_error(
-    sbert_topics(topic_test_corpus(), 3L, embeddings = non_finite),
+    topics(topic_test_corpus(), 3L, embeddings = non_finite),
     "finite numeric matrix"
+  )
+})
+
+topic_frame_fixture <- function() {
+  data.frame(
+    abstract = c(
+      "Cats chase mice", "Kittens chase mice too", "Cats nap daily",
+      NA, "[NO ABSTRACT AVAILABLE]", "   ",
+      "Stocks and bonds trade", "Markets price shares", "Banks report profit"
+    ),
+    year = 2001:2009,
+    journal = letters[1:9],
+    stringsAsFactors = FALSE
+  )
+}
+
+topic_frame_embeddings <- function() {
+  rbind(
+    c(1, 0, 0), c(0.98, 0.02, 0), c(0.96, 0, 0.04),
+    c(0.5, 0.5, 0), c(0.4, 0.4, 0.2), c(0.3, 0.3, 0.3),
+    c(0, 1, 0), c(0.02, 0.98, 0), c(0, 0.96, 0.04)
+  )
+}
+
+fit_topic_frame <- function(...) {
+  topics(
+    topic_frame_fixture(),
+    n_topics = 2L,
+    column = "abstract",
+    embeddings = topic_frame_embeddings(),
+    n_terms = 3L,
+    min_term_frequency = 1L,
+    ...
+  )
+}
+
+testthat::test_that("a data frame drops unusable rows and keeps its metadata", {
+  fitted <- fit_topic_frame()
+  testthat::expect_identical(nrow(fitted$documents), 6L)
+  testthat::expect_true(all(c("year", "journal") %in% names(fitted$documents)))
+  testthat::expect_identical(
+    fitted$documents$year,
+    c(2001L, 2002L, 2003L, 2007L, 2008L, 2009L)
+  )
+})
+
+testthat::test_that("supplied embeddings are subset to the surviving rows", {
+  fitted <- fit_topic_frame()
+  kept <- topic_frame_embeddings()[c(1:3, 7:9), , drop = FALSE]
+  testthat::expect_identical(nrow(fitted$embeddings), 6L)
+  # Rows are stored L2-normalized; direction must match the supplied rows.
+  cosines <- rowSums(fitted$embeddings * kept) /
+    sqrt(rowSums(kept^2))
+  testthat::expect_equal(cosines, rep(1, 6L), tolerance = 1e-12)
+})
+
+testthat::test_that("topic label rides on every table keyed by topic", {
+  fitted <- fit_topic_frame()
+  for (table in list(fitted$documents, fitted$terms, fitted$representatives)) {
+    testthat::expect_true("label" %in% names(table))
+    testthat::expect_identical(
+      table$label,
+      fitted$topics$label[table$topic]
+    )
+  }
+})
+
+testthat::test_that("label sits immediately after topic", {
+  fitted <- fit_topic_frame()
+  testthat::expect_identical(
+    names(fitted$terms)[1:2],
+    c("topic", "label")
+  )
+})
+
+testthat::test_that("embeddings are retained by default", {
+  fitted <- fit_topic_frame()
+  testthat::expect_false(is.null(fitted$embeddings))
+  dropped <- fit_topic_frame(keep_embeddings = FALSE)
+  testthat::expect_null(dropped$embeddings)
+})
+
+testthat::test_that("a character vector still takes the original path", {
+  fitted <- topics(
+    c(
+      "Cats chase mice", "Kittens chase mice too", "Cats nap daily",
+      "Stocks and bonds trade", "Markets price shares", "Banks report profit"
+    ),
+    n_topics = 2L,
+    embeddings = rbind(
+      c(1, 0, 0), c(0.98, 0.02, 0), c(0.96, 0, 0.04),
+      c(0, 1, 0), c(0.02, 0.98, 0), c(0, 0.96, 0.04)
+    ),
+    n_terms = 3L,
+    min_term_frequency = 1L
+  )
+  testthat::expect_identical(nrow(fitted$documents), 6L)
+  testthat::expect_false("year" %in% names(fitted$documents))
+})
+
+testthat::test_that("malformed data-frame input is rejected clearly", {
+  testthat::expect_error(
+    topics(topic_frame_fixture(), n_topics = 2L),
+    "supply 'column'"
+  )
+  testthat::expect_error(
+    topics(topic_frame_fixture(), n_topics = 2L, column = "missing"),
+    "not found"
+  )
+  testthat::expect_error(
+    topics(letters[1:6], n_topics = 2L, column = "abstract"),
+    "only when the first argument is a data frame"
+  )
+})
+
+testthat::test_that("representatives default to the fitted corpus", {
+  fitted <- fit_topic_frame()
+  from_fit <- representatives(fitted, n = 2L)
+  explicit <- representatives(
+    fitted,
+    fitted$documents$text,
+    embeddings = fitted$embeddings,
+    n = 2L
+  )
+  testthat::expect_equal(from_fit, explicit)
+})
+
+testthat::test_that("representatives explain a model that kept no embeddings", {
+  dropped <- fit_topic_frame(keep_embeddings = FALSE)
+  testthat::expect_error(
+    representatives(dropped, n = 2L),
+    "kept no embeddings"
   )
 })

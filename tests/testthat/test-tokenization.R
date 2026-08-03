@@ -1,7 +1,7 @@
 testthat::test_that("curly and straight apostrophes tokenize identically", {
   tokens <- sbert:::tokenize_topic_documents(
     c("It’s fine", "It's fine"),
-    stopwords = character(),
+    stop_words = character(),
     min_token_length = 2L
   )
   testthat::expect_identical(tokens[[1L]], tokens[[2L]])
@@ -12,7 +12,7 @@ testthat::test_that("stemming collapses inflections to a shared display form", {
   testthat::skip_if_not_installed("SnowballC")
   tokens <- sbert:::tokenize_topic_documents(
     c("animals animal animals", "meaning means mean"),
-    stopwords = character(),
+    stop_words = character(),
     min_token_length = 2L,
     stem = TRUE
   )
@@ -30,7 +30,7 @@ testthat::test_that("stemming keeps topic terms distinct and deduplicated", {
     "colour colours bright", "colours colour vivid"
   )
   embeddings <- rbind(c(1, 0), c(0.9, 0.1), c(0, 1), c(0.1, 0.9))
-  model <- sbert_topics(
+  model <- topics(
     text, 2L,
     embeddings = embeddings,
     n_terms = 3L,

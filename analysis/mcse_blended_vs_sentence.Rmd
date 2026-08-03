@@ -26,7 +26,7 @@ be compared across pages. This page puts them together properly: both
 models are fitted here on the **identical** 99,765 sentences, from the
 **identical** sentence encodings — the only difference between them is
 whether each sentence's vector was blended with its abstract
-(`sbert_blend()`, `alpha = 0.5`) or used as is. Every blended topic is
+(`blend()`, `alpha = 0.5`) or used as is. Every blended topic is
 then matched to the pure-sentence topic it shares the most sentences
 with, and the pairs are shown side by side: same label style, same
 margin-ranked verbatim statements.
@@ -44,7 +44,7 @@ about the same thing*.
 mcse <- readRDS(mcse_path)
 usable <- subset(mcse, !is.na(AB) & !startsWith(trimws(AB), "[NO ABSTRACT"))
 abstracts <- unique(trimws(usable$AB))
-sentences <- sbert_segment(abstracts, level = "sentence", merge_below = 5)
+sentences <- segment(abstracts, level = "sentence", merge_below = 5)
 nrow(sentences)
 ```
 
@@ -52,10 +52,10 @@ Both spaces are built from one pass of encodings, so the blend is the
 only moving part:
 
 ```{r embeddings}
-qa_minilm <- sbert_load_model("multi-qa-MiniLM-L6-cos-v1", threads = 8L)
-sentence_embeddings <- sbert_encode(sentences$text, model = qa_minilm)
-abstract_embeddings <- sbert_encode(abstracts, model = qa_minilm)
-blended_embeddings <- sbert_blend(
+qa_minilm <- load_model("multi-qa-MiniLM-L6-cos-v1", threads = 8L)
+sentence_embeddings <- encode(sentences$text, model = qa_minilm)
+abstract_embeddings <- encode(abstracts, model = qa_minilm)
+blended_embeddings <- blend(
   sentences,
   embeddings = sentence_embeddings,
   document_embeddings = abstract_embeddings,
@@ -66,14 +66,14 @@ blended_embeddings <- sbert_blend(
 # Two thirty-topic models
 
 ```{r models}
-sentence_model <- sbert_topics(
+sentence_model <- topics(
   sentences$text,
   n_topics = 30,
   embeddings = sentence_embeddings,
   n_terms = 8,
   n_representatives = 3
 )
-blended_model <- sbert_topics(
+blended_model <- topics(
   sentences$text,
   n_topics = 30,
   embeddings = blended_embeddings,
@@ -89,19 +89,19 @@ answers whether blending in document context produced topics whose top
 words genuinely co-occur — the empirical verdict on the design.
 
 ```{r coherence}
-sentence_coherence <- sbert_coherence(sentence_model, measure = "npmi")
-blended_coherence <- sbert_coherence(blended_model, measure = "npmi")
+sentence_coherence <- coherence(sentence_model, measure = "npmi")
+blended_coherence <- coherence(blended_model, measure = "npmi")
 mean(sentence_coherence$coherence)
 mean(blended_coherence$coherence)
 ```
 
 ```{r evidence}
-sentence_evidence <- sbert_representatives(
+sentence_evidence <- representatives(
   sentence_model,
   sentences$text,
   embeddings = sentence_embeddings
 )
-blended_evidence <- sbert_representatives(
+blended_evidence <- representatives(
   blended_model,
   sentences$text,
   embeddings = blended_embeddings

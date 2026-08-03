@@ -10,7 +10,7 @@ review_directory <- file.path("tmp", "mcse_review")
 final_k <- nrow(model$topics)
 stopifnot(is.matrix(model$centers), nrow(model$centers) == final_k)
 
-sbert_model <- sbert_load_model("/private/tmp/sbert-package-download-test", threads = 2L)
+sbert_model <- load_model("/private/tmp/sbert-package-download-test", threads = 2L)
 
 # Validated segmentation algorithm (analysis/segment_text.R): rule-based,
 # gazetteer-protected, benchmarked at F1 0.999 on realistic MCSE abbreviations
@@ -52,8 +52,8 @@ representative_sentences <- function(topic_id) {
   if (length(sentences) < 1L) {
     return(character(0))
   }
-  embeddings <- sbert_encode(sentences, sbert_model, batch_size = 64L, normalize = TRUE)
-  similarity <- sbert_similarity(embeddings, model$centers)
+  embeddings <- encode(sentences, sbert_model, batch_size = 64L, normalize = TRUE)
+  similarity <- topic_similarity(embeddings, model$centers)
   own <- similarity[, topic_id]
   other <- apply(similarity[, -topic_id, drop = FALSE], 1L, max)
   word_count <- lengths(strsplit(sentences, "\\s+"))

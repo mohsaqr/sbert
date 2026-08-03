@@ -394,7 +394,7 @@ partition_summaries <- lapply(
       topic = as.integer(topic_id),
       n_topics = as.integer(topic_count),
       n_terms = 10L,
-      stopwords = sbert_stopwords(),
+      stopwords = stop_words(),
       min_term_frequency = 5L,
       min_token_length = 2L
     )

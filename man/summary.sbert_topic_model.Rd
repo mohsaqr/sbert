@@ -7,12 +7,12 @@
 \method{summary}{sbert_topic_model}(object, measure = c("npmi", "umass"), n_terms = 10L, ...)
 }
 \arguments{
-\item{object}{An `sbert_topic_model` returned by [sbert_topics()].}
+\item{object}{An `sbert_topic_model` returned by [topics()].}
 
-\item{measure}{Coherence measure passed to [sbert_coherence()].}
+\item{measure}{Coherence measure passed to [coherence()].}
 
 \item{n_terms}{Number of top terms per topic used for coherence and
-diversity.}
+topic_diversity.}
 
 \item{...}{Unused; present for S3 compatibility.}
 }
@@ -22,7 +22,7 @@ Invisibly, a data frame with one row per topic containing `topic`,
 }
 \description{
 Prints a compact scientific report -- corpus size, cluster separation,
-coherence, and diversity -- and returns a tidy per-topic quality table.
+coherence, and topic_diversity -- and returns a tidy per-topic quality table.
 }
 \examples{
 text <- c(
@@ -30,6 +30,6 @@ text <- c(
   "Stocks and bonds trade", "Markets price shares"
 )
 embeddings <- rbind(c(1, 0), c(0.9, 0.1), c(0, 1), c(0.1, 0.9))
-topics <- sbert_topics(text, 2, embeddings = embeddings, n_terms = 3)
+topics <- topics(text, 2, embeddings = embeddings, n_terms = 3)
 summary(topics)
 }

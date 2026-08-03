@@ -11,7 +11,7 @@ two_segment_frame <- function(document_ids = c(1L, 1L)) {
 testthat::test_that("orthogonal segment blends to the hand-computed midpoint", {
   # u = (1, 0) orthogonal to d = (0, 1): residual is u itself, so the blend is
   # normalize(0.5 u + 0.5 d) = (1, 1) / sqrt(2).
-  result <- sbert_blend(
+  result <- blend(
     two_segment_frame(c(1L, 1L)),
     alpha = 0.5,
     embeddings = matrix(c(1, 0, 0, 1), nrow = 2, byrow = TRUE),
@@ -32,7 +32,7 @@ testthat::test_that("collinear segment falls back to the document direction", {
   unit_vectors <- matrix(c(0, 1, 0, 1), nrow = 2, byrow = TRUE)
   document_vectors <- matrix(c(0, 1), nrow = 1)
   for (alpha in c(0, 0.5, 1)) {
-    result <- sbert_blend(
+    result <- blend(
       segments,
       alpha = alpha,
       embeddings = unit_vectors,
@@ -47,7 +47,7 @@ testthat::test_that("alpha endpoints recover document and pure residual", {
   unit_vectors <- matrix(c(1, 0, 0.6, 0.8), nrow = 2, byrow = TRUE)
   document_vectors <- matrix(c(0, 1), nrow = 1)
 
-  at_zero <- sbert_blend(
+  at_zero <- blend(
     segments,
     alpha = 0,
     embeddings = unit_vectors,
@@ -61,7 +61,7 @@ testthat::test_that("alpha endpoints recover document and pure residual", {
 
   # alpha = 1 keeps only the context-orthogonal component: for u = (0.6, 0.8)
   # against d = (0, 1) the residual is (0.6, 0), normalized to (1, 0).
-  at_one <- sbert_blend(
+  at_one <- blend(
     segments,
     alpha = 1,
     embeddings = unit_vectors,
@@ -80,7 +80,7 @@ testthat::test_that("document_id maps each segment to its own parent", {
   segments <- two_segment_frame(c(1L, 2L))
   unit_vectors <- matrix(c(1, 0, 1, 0), nrow = 2, byrow = TRUE)
   document_vectors <- matrix(c(0, 1, 0, -1), nrow = 2, byrow = TRUE)
-  result <- sbert_blend(
+  result <- blend(
     segments,
     alpha = 0.5,
     embeddings = unit_vectors,
@@ -98,13 +98,13 @@ testthat::test_that("document_id maps each segment to its own parent", {
 testthat::test_that("unnormalized inputs are normalized before blending", {
   # Scaling u or d must not change the result: the blend works on directions.
   segments <- two_segment_frame(c(1L, 1L))
-  scaled <- sbert_blend(
+  scaled <- blend(
     segments,
     alpha = 0.5,
     embeddings = matrix(c(10, 0, 0, 3), nrow = 2, byrow = TRUE),
     document_embeddings = matrix(c(0, 7), nrow = 1)
   )
-  plain <- sbert_blend(
+  plain <- blend(
     segments,
     alpha = 0.5,
     embeddings = matrix(c(1, 0, 0, 1), nrow = 2, byrow = TRUE),
@@ -122,7 +122,7 @@ testthat::test_that("every output row has unit norm", {
     text = paste("segment", 1:12),
     stringsAsFactors = FALSE
   )
-  result <- sbert_blend(
+  result <- blend(
     segments,
     alpha = 0.3,
     embeddings = matrix(rnorm(12 * 5), nrow = 12),
@@ -141,15 +141,15 @@ testthat::test_that("invalid inputs are rejected", {
   document_vectors <- matrix(c(0, 1), nrow = 1)
 
   testthat::expect_error(
-    sbert_blend(segments, alpha = 0.5, embeddings = unit_vectors),
+    blend(segments, alpha = 0.5, embeddings = unit_vectors),
     "both"
   )
   testthat::expect_error(
-    sbert_blend(segments, alpha = 0.5, document_embeddings = document_vectors),
+    blend(segments, alpha = 0.5, document_embeddings = document_vectors),
     "both"
   )
   testthat::expect_error(
-    sbert_blend(
+    blend(
       segments,
       alpha = 1.5,
       embeddings = unit_vectors,
@@ -157,7 +157,7 @@ testthat::test_that("invalid inputs are rejected", {
     )
   )
   testthat::expect_error(
-    sbert_blend(
+    blend(
       segments,
       alpha = 0.5,
       embeddings = unit_vectors[1, , drop = FALSE],
@@ -165,7 +165,7 @@ testthat::test_that("invalid inputs are rejected", {
     )
   )
   testthat::expect_error(
-    sbert_blend(
+    blend(
       two_segment_frame(c(1L, 5L)),
       alpha = 0.5,
       embeddings = unit_vectors,
@@ -173,7 +173,7 @@ testthat::test_that("invalid inputs are rejected", {
     )
   )
   testthat::expect_error(
-    sbert_blend(data.frame(text = "x"), alpha = 0.5)
+    blend(data.frame(text = "x"), alpha = 0.5)
   )
-  testthat::expect_error(sbert_blend(segments))
+  testthat::expect_error(blend(segments))
 })

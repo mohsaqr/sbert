@@ -12,7 +12,7 @@ plots_test_model <- function(keep_embeddings = TRUE) {
     c(0, 1, 0), c(0.05, 0.95, 0),
     c(0, 0, 1), c(0.05, 0, 0.95)
   )
-  sbert_topics(
+  topics(
     text,
     3L,
     embeddings = embeddings,
@@ -22,10 +22,10 @@ plots_test_model <- function(keep_embeddings = TRUE) {
 }
 
 testthat::test_that("the palette returns the requested number of colours", {
-  colours <- sbert_palette(3L)
+  colours <- topic_palette(3L)
   testthat::expect_length(colours, 3L)
   testthat::expect_true(all(grepl("^#", colours)))
-  testthat::expect_error(sbert_palette(0))
+  testthat::expect_error(topic_palette(0))
 })
 
 testthat::test_that("every plot type draws without error and returns the model", {

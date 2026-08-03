@@ -473,7 +473,7 @@ assignments are unchanged.
 
 ```{r common-word-bars, fig.width=14, fig.height=28}
 common_word_stopwords <- unique(c(
-  sbert_stopwords(),
+  stop_words(),
   mcse_common_word_stopwords()
 ))
 common_word_tables <- lapply(

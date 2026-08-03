@@ -1,5 +1,5 @@
 # Generic Hugging Face embedding-model loader with trust-on-first-use pinning.
-# Unlike the curated registry (sbert_models()), configuration here is
+# Unlike the curated registry (models()), configuration here is
 # auto-detected where possible and recorded to a local manifest on first
 # download; later loads verify files against that recorded manifest. The
 # caller vouches for the pooling configuration; no parity certificate is
@@ -12,7 +12,7 @@ custom_model_directory <- function(cache_dir, id, revision) {
 read_hf_json <- function(url) {
   if (!requireNamespace("jsonlite", quietly = TRUE)) {
     stop(
-      "sbert_load_custom() requires the 'jsonlite' package. Install it first.",
+      "load_custom() requires the 'jsonlite' package. Install it first.",
       call. = FALSE
     )
   }
@@ -172,7 +172,7 @@ verify_custom_files <- function(model_directory, manifest) {
 #'
 #' Loads any public Hugging Face repository that ships an ONNX encoder export
 #' and a `tokenizer.json`, returning the same `sbert_model` object as
-#' [sbert_load_model()] so that [sbert_encode()], [sbert_topics()], and every
+#' [load_model()] so that [encode()], [topics()], and every
 #' downstream verb work unchanged.
 #'
 #' This is the escape hatch below the curated registry. On first use the
@@ -195,12 +195,12 @@ verify_custom_files <- function(model_directory, manifest) {
 #'   `"tokenizer.json"`.
 #' @param pooling `"mean"` or `"cls"`. `NULL` auto-detects from
 #'   `1_Pooling/config.json` and fails with a clear message when absent.
-#' @param prefix Text prepended to every input by [sbert_encode()]. `NULL`
+#' @param prefix Text prepended to every input by [encode()]. `NULL`
 #'   (default) keeps the recorded value (`""` on first use); pass `""` to
 #'   clear a recorded prefix.
 #' @param max_length Maximum word pieces per input. `NULL` auto-detects from
 #'   `sentence_bert_config.json`, falling back to 512.
-#' @param cache_dir Cache root returned by [sbert_cache_dir()].
+#' @param cache_dir Cache root returned by [cache_dir()].
 #' @param backend ONNX execution backend accepted by [onnxr::onnx_model()].
 #' @param threads Positive number of inference threads.
 #' @param verify Whether to verify recorded byte sizes and SHA-256 hashes
@@ -209,9 +209,9 @@ verify_custom_files <- function(model_directory, manifest) {
 #' @return An object of class `sbert_model`.
 #' @export
 #' @examplesIf interactive()
-#' model <- sbert_load_custom("thenlper/gte-small")
-#' sbert_encode(c("one sentence", "another sentence"), model)
-sbert_load_custom <- function(
+#' model <- load_custom("thenlper/gte-small")
+#' encode(c("one sentence", "another sentence"), model)
+load_custom <- function(
   id,
   revision = NULL,
   onnx_path = NULL,
@@ -219,7 +219,7 @@ sbert_load_custom <- function(
   pooling = NULL,
   prefix = NULL,
   max_length = NULL,
-  cache_dir = sbert_cache_dir(),
+  cache_dir = default_cache_dir(),
   backend = "cpu",
   threads = 1L,
   verify = TRUE,
@@ -255,7 +255,7 @@ sbert_load_custom <- function(
   )
   if (!sbert_onnx_is_installed()) {
     stop(
-      "ONNX Runtime is not installed. Run sbert_install_runtime() explicitly first.",
+      "ONNX Runtime is not installed. Run install_runtime() explicitly first.",
       call. = FALSE
     )
   }

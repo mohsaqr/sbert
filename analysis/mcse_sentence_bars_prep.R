@@ -20,7 +20,7 @@ academic_filler <- c("paper","papers","article","articles","study","studies",
  "concept","concepts","method","methods","methodology","also","however",
  "different","various")
 domain_ubiquitous <- c("students","student","programming","program","programs")
-stop_words <- unique(c(sbert_stopwords(), search_keywords, academic_filler, domain_ubiquitous))
+stop_words <- unique(c(stop_words(), search_keywords, academic_filler, domain_ubiquitous))
 
 ts <- sbert:::topic_term_scores(
   text = model$documents$text, topic = model$documents$topic, n_topics = k_topics,
@@ -28,8 +28,8 @@ ts <- sbert:::topic_term_scores(
   min_token_length = 3L, weighting = "bm25", reduce_frequent_words = TRUE, stem = TRUE
 )
 counts <- ts$counts; scores <- ts$scores; vocab <- colnames(counts)
-coherence <- sbert_coherence(model, "npmi", n_terms = 10L)
-colors <- sbert_palette(k_topics)
+coherence <- coherence(model, "npmi", n_terms = 10L)
+colors <- topic_palette(k_topics)
 
 fig_dir <- normalizePath(file.path("tmp", "mcse_sentence_bars"), mustWork = FALSE)
 dir.create(fig_dir, recursive = TRUE, showWarnings = FALSE)

@@ -27,26 +27,26 @@ tests, or this vignette. Install the native runtime and pinned model explicitly:
 
 ```{r install, eval=FALSE}
 library(sbert)
-sbert_install_runtime()
-sbert_model_download()
+install_runtime()
+model_download()
 ```
 
 Load the verified files and encode text:
 
 ```{r encode, eval=FALSE}
-model <- sbert_load_model()
+model <- load_model()
 sentences <- c(
   "A student is reading a research paper.",
   "A learner studies an academic article.",
   "The bicycle is parked beside the building."
 )
-embeddings <- sbert_encode(sentences, model)
+embeddings <- encode(sentences, model)
 dim(embeddings)
-sbert_similarity(embeddings)
+topic_similarity(embeddings)
 ```
 
 The output has one row per sentence and 384 columns. Normalized vectors have
-unit L2 norm, so their matrix product is cosine similarity.
+unit L2 norm, so their matrix product is cosine topic_similarity.
 
 The post-processing functions are independently usable and require no model
 download. This small example masks the third token of each sentence:
@@ -54,22 +54,22 @@ download. This small example masks the third token of each sentence:
 ```{r pooling}
 token_embeddings <- array(seq_len(12), dim = c(2, 3, 2))
 attention_mask <- matrix(c(1, 1, 0, 1, 1, 0), nrow = 2, byrow = TRUE)
-sentence_embeddings <- sbert::sbert_pool(
+sentence_embeddings <- sbert::pool(
   token_embeddings,
   attention_mask
 )
 sentence_embeddings
 rowSums(sentence_embeddings^2)
-sbert::sbert_similarity(sentence_embeddings)
+sbert::topic_similarity(sentence_embeddings)
 ```
 
-Use `sbert_model_status()` to inspect artifact validity,
-`sbert_cache_size()` to measure disk use, and `sbert_model_remove()` to remove
+Use `model_status()` to inspect artifact validity,
+`cache_size()` to measure disk use, and `model_remove()` to remove
 the pinned model.
 
 ## Semantic topic modeling
 
-`sbert_topics()` clusters normalized sentence embeddings with deterministic
+`topics()` clusters normalized sentence embeddings with deterministic
 k-means. It then identifies documents nearest each semantic center and computes
 class-based TF-IDF terms from the original text. The topic count is always
 explicit.
@@ -91,7 +91,7 @@ topic_embeddings <- rbind(
   c(0, 1, 0), c(0.05, 0.95, 0),
   c(0, 0, 1), c(0.05, 0, 0.95)
 )
-topic_model <- sbert::sbert_topics(
+topic_model <- sbert::topics(
   topic_text,
   n_topics = 3,
   embeddings = topic_embeddings,
@@ -114,14 +114,14 @@ across topics.
 
 ## Evaluating topic quality
 
-Topic solutions are judged, not assumed. `sbert_coherence()` scores how often a
-topic's top terms co-occur in the same documents; `sbert_diversity()` reports
+Topic solutions are judged, not assumed. `coherence()` scores how often a
+topic's top terms co-occur in the same documents; `topic_diversity()` reports
 how distinct the topics' vocabularies are; and `summary()` combines both into a
 single report with a tidy per-topic quality table.
 
 ```{r evaluate}
-sbert::sbert_coherence(topic_model, measure = "npmi")
-sbert::sbert_diversity(topic_model)
+sbert::coherence(topic_model, measure = "npmi")
+sbert::topic_diversity(topic_model)
 summary(topic_model)
 ```
 

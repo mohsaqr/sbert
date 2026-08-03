@@ -7,7 +7,7 @@ devtools::load_all(quiet = TRUE)
 
 model <- readRDS("outputs/mcse_gold_topics/mcse_gold_topic_model.rds")
 quality <- read.csv("outputs/mcse_gold_topics/topic_quality.csv", stringsAsFactors = FALSE)
-sbert_model <- sbert_load_model("/private/tmp/sbert-package-download-test", threads = 2L)
+sbert_model <- load_model("/private/tmp/sbert-package-download-test", threads = 2L)
 
 # ---- STM topics from the published Table 1 (label -> frequent keywords) ------
 stm <- list(
@@ -42,12 +42,12 @@ stm <- list(
   "Other" = "computing, computation theory, computer applications, research questions, mobile, teaching and learning"
 )
 stm_labels <- names(stm)
-stm_embeddings <- sbert_encode(unlist(stm, use.names = FALSE), sbert_model,
+stm_embeddings <- encode(unlist(stm, use.names = FALSE), sbert_model,
                                batch_size = 32L, normalize = TRUE)
 
 # ---- Align in the common MiniLM space --------------------------------------
 sbert_labels <- model$topics$label
-similarity <- sbert_similarity(stm_embeddings, model$centers)   # 29 STM x 29 SBERT
+similarity <- topic_similarity(stm_embeddings, model$centers)   # 29 STM x 29 SBERT
 rownames(similarity) <- stm_labels
 colnames(similarity) <- sbert_labels
 

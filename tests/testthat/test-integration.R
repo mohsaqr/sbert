@@ -14,7 +14,7 @@ testthat::test_that("official model matches SentenceTransformers references", {
     model_directory
   )
   testthat::expect_true(all(copied))
-  model <- sbert_load_model(cache_dir, threads = 1L)
+  model <- load_model(cache_dir, threads = 1L)
   sentences <- c(
     "This is an example sentence",
     "Each sentence is converted.",
@@ -32,7 +32,7 @@ testthat::test_that("official model matches SentenceTransformers references", {
     model$tokenizer,
     model$max_length
   )
-  embeddings <- sbert_encode(sentences, model, batch_size = 4L)
+  embeddings <- encode(sentences, model, batch_size = 4L)
 
   testthat::expect_identical(inputs$input_ids, expected_ids)
   testthat::expect_identical(dim(embeddings), c(4L, 384L))

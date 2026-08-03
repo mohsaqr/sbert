@@ -364,7 +364,7 @@ resolve_sbert_manifest <- function(model = .sbert_default_model) {
   if (is.na(index)) {
     stop(
       sprintf(
-        "Unknown model '%s'. Available models: %s. See sbert_models().",
+        "Unknown model '%s'. Available models: %s. See models().",
         model,
         paste(short_names, collapse = ", ")
       ),
@@ -379,19 +379,19 @@ resolve_sbert_manifest <- function(model = .sbert_default_model) {
 #' Every supported model is locked to an immutable Hugging Face revision and
 #' verified by byte size and SHA-256 before use. Pass the `model` column value
 #' to any verb that takes a model, for example
-#' `sbert_encode(text, model = "bge-small-en-v1.5")`.
+#' `encode(text, model = "bge-small-en-v1.5")`.
 #'
 #' @param detail Whether to include the technical columns. The default
 #'   `FALSE` returns the menu (`model`, `dimensions`, `max_tokens`,
 #'   `languages`, `size_mb`); `TRUE` adds `pooling` (`"mean"` or `"cls"`),
-#'   `prefix` (text automatically prepended by [sbert_encode()]), `license`,
+#'   `prefix` (text automatically prepended by [encode()]), `license`,
 #'   `id`, and `revision`.
 #' @return A data frame with one row per model.
 #' @export
 #' @examples
-#' sbert_models()
-#' sbert_models(detail = TRUE)
-sbert_models <- function(detail = FALSE) {
+#' models()
+#' models(detail = TRUE)
+models <- function(detail = FALSE) {
   stopifnot(is.logical(detail), length(detail) == 1L, !is.na(detail))
   full <- data.frame(
     model = vapply(.sbert_registry, `[[`, character(1), "short_name"),
