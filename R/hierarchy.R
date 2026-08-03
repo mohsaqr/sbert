@@ -104,8 +104,8 @@ plot.sbert_topic_hierarchy <- function(
   cex = 0.8,
   ...
 ) {
-  previous <- par(mar = c(2.2, 4.2, 2.6, 0.6), mgp = c(2.4, 0.6, 0))
-  on.exit(par(previous), add = TRUE)
+  previous <- graphics::par(mar = c(2.2, 4.2, 2.6, 0.6), mgp = c(2.4, 0.6, 0))
+  on.exit(graphics::par(previous), add = TRUE)
   plot(
     x$tree,
     hang = -1,

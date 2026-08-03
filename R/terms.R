@@ -12,7 +12,7 @@
 #'
 #' @param x A fitted model from [topics()].
 #' @param n Terms returned per topic, or `NULL` for the whole vocabulary
-#'   (useful together with `smoothing` to obtain a full \e\eqn{p(term | topic)}
+#'   (useful together with `smoothing` to obtain a full \eqn{p(term | topic)}
 #'   distribution). Defaults to the model's fitted `n_terms`.
 #' @param stop_words Character vector excluded from terms. Defaults to the
 #'   model's fitted list; see [stop_words()].
@@ -34,7 +34,7 @@
 #' @param ... Unused, present for generic consistency.
 #' @return A base data frame with one row per topic and term: `topic`,
 #'   `label`, `term`, `rank`, `score` (the class-based weight), `frequency`
-#'   (within-topic count), and `beta`, the multinomial \e\eqn{p(term | topic)}.
+#'   (within-topic count), and `beta`, the multinomial \eqn{p(term | topic)}.
 #' @export
 #' @examples
 #' text <- c(

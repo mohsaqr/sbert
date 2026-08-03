@@ -543,6 +543,11 @@ encode_topic_documents <- function(text, model, batch_size) {
 #'
 #' @param text Character vector containing one document per element.
 #' @param n_topics Number of semantic topics. Must be at least two.
+#' @param column When `text` is a data frame, the name of the column
+#'   holding the documents to model. Every other column is carried into
+#'   `$documents`, and rows whose text is missing, blank, or a
+#'   bibliographic placeholder are dropped. Leave `NULL` for a character
+#'   vector.
 #' @param model A loaded [sbert_model][load_model()], a pinned model
 #'   name from [models()], or `NULL` for the default model. Ignored
 #'   when `embeddings` are supplied.

@@ -31,6 +31,12 @@ topics(
 
 \item{n_topics}{Number of semantic topics. Must be at least two.}
 
+\item{column}{When `text` is a data frame, the name of the column
+holding the documents to model. Every other column is carried into
+`$documents`, and rows whose text is missing, blank, or a
+bibliographic placeholder are dropped. Leave `NULL` for a character
+vector.}
+
 \item{model}{A loaded [sbert_model][load_model()], a pinned model
 name from [models()], or `NULL` for the default model. Ignored
 when `embeddings` are supplied.}
