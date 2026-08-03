@@ -1,3 +1,12 @@
+# sbert 0.5.1
+
+- `R CMD check --as-cran` is clean: 0 errors, 0 warnings, 0 notes.
+- Documented the `column` argument of `topics()`.
+- Repaired a malformed `\eqn` macro in the `terms()` documentation.
+- Qualified `graphics::par()` in the topic-hierarchy plot method.
+- Declared `withr` in Suggests; the session tests use it.
+- Excluded `.DS_Store`, `TODO.md` and knitr caches from the package build.
+
 # sbert 0.5.0
 
 ## Breaking: the `sbert_` prefix is gone
