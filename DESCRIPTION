@@ -44,4 +44,4 @@ Suggests:
 SystemRequirements: ONNX Runtime (>= 1.25.1)
 VignetteBuilder: knitr
 Config/testthat/edition: 3
-RoxygenNote: 7.3.3
+RoxygenNote: 8.0.0

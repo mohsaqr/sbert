@@ -11,6 +11,7 @@ README.html
 # Build and check artifacts
 *.tar.gz
 *.Rcheck/
+sbert.Rproj
 .Rproj.user
 Rplots.pdf
 

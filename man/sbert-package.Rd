@@ -15,5 +15,10 @@ Python installation is required.
 \author{
 \strong{Maintainer}: Mohammed Saqr \email{mohammed.saqr@uef.fi} (\href{https://orcid.org/0000-0001-5881-3109}{ORCID}) [copyright holder]
 
+Authors:
+\itemize{
+  \item Mohammed Saqr \email{mohammed.saqr@uef.fi} (\href{https://orcid.org/0000-0001-5881-3109}{ORCID}) [copyright holder]
+}
+
 }
 \keyword{internal}

@@ -1,6 +1,6 @@
 input_path <- Sys.getenv(
   "SBERT_FEEDBACK_CSV",
-  unset = "/Users/mohammedsaqr/Downloads/Bee2/feedback_translations (2).csv"
+  unset = "data-raw/feedback_translations.csv"
 )
 output_directory <- file.path("outputs", "feedback_translation_topics")
 embedding_path <- file.path(output_directory, "feedback_translation_embeddings.rds")

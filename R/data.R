@@ -8,18 +8,16 @@
 #' Romanian, Ukrainian, Russian, Mongolian, and Vietnamese. The corpus is a
 #' realistic, quirk-preserving benchmark for the package's embedding,
 #' topic_similarity, segmentation, and topic-modeling workflow: translations repeat
-#' (templates such as "Very good!" appear many times), a small number of rows
-#' were never translated (the translation still contains Cyrillic text), and a
-#' few source messages are identical to their translation.
+#' (templates such as "Try again." recur), some source messages remain in
+#' their original language, and a few are identical to their translation.
 #'
-#' @format A data frame with 8,987 rows and 2 character columns:
+#' @format A data frame with 8,757 rows and 2 character columns:
 #' \describe{
 #'   \item{feedback}{The original feedback message in the source language.}
 #'   \item{translation}{The English translation of the message.}
 #' }
-#' Eleven rows are missing both fields (`NA`); the export represented them as
-#' blank. Among the non-missing rows there are 8,144 distinct translations.
-#' Messages are at most 193 characters long.
+#' There are 8,005 distinct translations. Messages are at most 193 characters
+#' long.
 #'
 #' @source Anonymized export of the AI mathematics feedback of the Levebee
 #'   educational application (<https://www.levebee.com/>), December 2025. The

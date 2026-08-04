@@ -12,14 +12,16 @@ testthat::test_that("the existing-package sentence embedding example renders", {
     file.exists(input_path),
     "the repository-only historical example is not included in the package"
   )
-  output_directory <- file.path(project_root, "tmp")
+  # The example compares against other packages; skip when any is absent
+  # (mirrors the required_packages guard inside the example itself).
+  testthat::skip_if_not_installed("knitr")
+  testthat::skip_if_not_installed("quanteda")
+  testthat::skip_if_not_installed("reticulate")
+  testthat::skip_if_not_installed("RSpectra")
+  output_directory <- file.path(tempdir(), "sbert-existing-package-example")
+  dir.create(output_directory, showWarnings = FALSE, recursive = TRUE)
   output_filename <- "sentence_embeddings_existing_packages.html"
   render_environment <- new.env(parent = globalenv())
-
-  stopifnot(
-    file.exists(input_path),
-    dir.exists(output_directory)
-  )
 
   output_path <- tryCatch(
     rmarkdown::render(

@@ -7,19 +7,19 @@ base-R, Python-free, pinned models, tidy one-verb APIs. Newest assessment
 
 ## Done (this round)
 
-- [x] `sbert_keywords()` — embedding-ranked keyword/phrase extraction with
+- [x] `keywords()` — embedding-ranked keyword/phrase extraction with
       MMR diversification (KeyBERT design)
-- [x] `sbert_stopwords(add = , remove = )` — corpus-vocabulary exclusion
-- [x] `sbert_select_topics()` — coherence/diversity/separation sweep over
+- [x] `stop_words(add = , remove = )` — corpus-vocabulary exclusion
+- [x] `select_topics()` — coherence/diversity/separation sweep over
       candidate topic counts
-- [x] `sbert_hierarchy()` + `sbert_reduce()` — topic dendrogram (cosine,
+- [x] `topic_hierarchy()` + `reduce_topics()` — topic dendrogram (cosine,
       deterministic) and tree-cut merging to fewer topics
-- [x] `sbert_blend()` — context-blended segment embeddings (residual
+- [x] `blend()` — context-blended segment embeddings (residual
       alpha-blend)
-- [x] `sbert_representatives()` — margin-ranked evidence selection
+- [x] `representatives()` — margin-ranked evidence selection
 - [x] **Static embeddings (Model2Vec)** — `potion-base-8M` pinned; token
       lookup + mean in base R, ~10k sentences/s, parity 3.3e-08 vs Python
-- [x] **Seeded / guided topics** — `sbert_topics(seeds = , fixed_seeds = )`;
+- [x] **Seeded / guided topics** — `topics(seeds = , fixed_seeds = )`;
       seed-initialized or frozen centroids, seed-named labels
 
 ## Topic-model layer
@@ -34,7 +34,7 @@ base-R, Python-free, pinned models, tidy one-verb APIs. Newest assessment
       `mmr_select()` on term embeddings; extend `topic_term_scores()` to
       n-grams.
 - [ ] **Embedding-based coherence** — mean pairwise term-embedding
-      similarity as a third `sbert_coherence()` measure.
+      similarity as a third `coherence()` measure.
 - [ ] **Topic stability** — label-invariant agreement (ARI) across
       perturbed refits (bootstrap resampling of documents).
 
@@ -43,9 +43,9 @@ base-R, Python-free, pinned models, tidy one-verb APIs. Newest assessment
 - [ ] **More static models** — potion-base-32M (higher quality) and
       potion-multilingual-128M (101 languages) once demand shows; the
       loader already supports them.
-- [ ] **Matryoshka truncation** — `dimensions =` on `sbert_encode()`
+- [ ] **Matryoshka truncation** — `dimensions =` on `encode()`
       (truncate + renormalize); `nomic-embed-text-v1.5` is MRL-trained.
-- [ ] **Late chunking** — successor to `sbert_blend()`: pool unit token
+- [ ] **Late chunking** — successor to `blend()`: pool unit token
       spans from the contextualized document pass. Requires exact
       char-to-token offset alignment, special-token exclusion, and
       truncation-safe windowing (NOT a splice of a single truncated pass).
@@ -54,10 +54,11 @@ base-R, Python-free, pinned models, tidy one-verb APIs. Newest assessment
 
 ## Housekeeping
 
-- [ ] R CMD check at 0.4.0
-- [ ] Fold the analysis tutorials into the package vignette
-- [ ] Decide whether `sbert_topics()`'s built-in representatives should use
-      margin ranking (currently raw distance; `sbert_representatives()` is
+- [x] R CMD check --as-cran clean (done at 0.5.1)
+- [x] Fold the analysis tutorials into the package vignette
+      (`topic-modeling` vignette ships)
+- [ ] Decide whether `topics()`'s built-in representatives should use
+      margin ranking (currently raw distance; `representatives()` is
       the margin path)
 
 ## Deliberately out of scope

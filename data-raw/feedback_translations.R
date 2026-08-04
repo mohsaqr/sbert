@@ -14,11 +14,12 @@ raw <- read.csv(
 )
 stopifnot(
   identical(names(raw), c("feedback", "translation")),
-  nrow(raw) == 8987L
+  nrow(raw) == 8761L
 )
 
-# Faithful copy of the export; the only transformation is representing the
-# 11 fully blank rows as NA instead of empty strings.
+# Near-faithful copy of the export: blank fields become NA (the current export
+# has none), and rows whose translation is still untranslated (Cyrillic) are
+# dropped below.
 feedback_translations <- data.frame(
   feedback = ifelse(nzchar(trimws(raw$feedback)), raw$feedback, NA_character_),
   translation = ifelse(
@@ -27,14 +28,25 @@ feedback_translations <- data.frame(
   stringsAsFactors = FALSE
 )
 stopifnot(
-  sum(is.na(feedback_translations$feedback)) == 11L,
-  sum(is.na(feedback_translations$translation)) == 11L,
+  sum(is.na(feedback_translations$feedback)) == 0L,
+  sum(is.na(feedback_translations$translation)) == 0L,
   all(validEnc(feedback_translations$feedback[
     !is.na(feedback_translations$feedback)
   ])),
   all(validEnc(feedback_translations$translation[
     !is.na(feedback_translations$translation)
   ]))
+)
+
+# Drop rows that were never actually translated: their `translation` still
+# contains Cyrillic script. The source `feedback` may legitimately remain in
+# its original language, so only the translation column is checked.
+translated <- !grepl("[Ѐ-ӿ]", feedback_translations$translation)
+feedback_translations <- feedback_translations[translated, , drop = FALSE]
+rownames(feedback_translations) <- NULL
+stopifnot(
+  nrow(feedback_translations) == 8757L,
+  !any(grepl("[Ѐ-ӿ]", feedback_translations$translation))
 )
 
 save(

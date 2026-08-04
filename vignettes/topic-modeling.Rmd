@@ -26,7 +26,7 @@ directly.
 
 ## The data
 
-`feedback_translations` ships with the package: 8,987 AI-generated mathematics
+`feedback_translations` ships with the package: 8,757 AI-generated mathematics
 feedback messages from the Levebee application, each paired with an English
 translation. The source languages include Czech, Slovak, Polish, German,
 Hungarian, Romanian, Ukrainian, Russian, Mongolian, and Vietnamese.
@@ -35,10 +35,11 @@ Hungarian, Romanian, Ukrainian, Russian, Mongolian, and Vietnamese.
 head(feedback_translations)
 ```
 
-The messages are short instructional hints. Many repeat verbatim — "Very
-good!" appears many times — which matters for topic modeling, because a
-template that occurs 200 times would otherwise pull a topic toward itself.
-`dedupe()` collapses repeats and records how often each one occurred:
+The messages are short instructional hints, and some repeat verbatim — "Try
+again." is the most common, appearing 11 times. That matters for topic
+modeling, because a heavily repeated template would otherwise pull a topic
+toward itself. `dedupe()` collapses repeats and records how often each one
+occurred:
 
 ```{r dedupe, eval=FALSE}
 corpus <- dedupe(feedback_translations$translation)
@@ -99,7 +100,7 @@ plot(sweep)
 The sweep keeps every model it fitted, so committing to one costs nothing:
 
 ```{r pick}
-fit <- fitted(sweep, n_topics = 8)
+fit <- fitted(sweep, n_topics = 6)
 fit
 ```
 

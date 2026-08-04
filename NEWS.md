@@ -258,10 +258,10 @@ columns.
 
 # sbert 0.3.0
 
-- Added the `feedback_translations` dataset: 8,987 multilingual AI-generated
+- Added the `feedback_translations` dataset: 8,757 multilingual AI-generated
   mathematics feedback messages from the Levebee educational application
-  paired with their English translations (8,144 distinct translations, 11 missing pairs, template
-  repetition and untranslated rows preserved), giving every example and
+  paired with their English translations (8,005 distinct translations, template
+  repetition preserved), giving every example and
   vignette a realistic offline corpus for the embedding, segmentation, and
   topic-modeling workflow.
 - Added `sbert_segment()`, deterministic rule-based text segmentation at

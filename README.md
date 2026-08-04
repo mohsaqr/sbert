@@ -197,7 +197,7 @@ sentences <- segment(abstracts, level = "sentence")
 embeddings <- blend(sentences, abstracts, alpha = 0.5)
 ```
 
-The bundled `feedback_translations` dataset (8,987 multilingual AI-generated
+The bundled `feedback_translations` dataset (8,757 multilingual AI-generated
 mathematics feedback messages from the Levebee educational application, with
 English translations) provides a realistic corpus for trying the full
 workflow offline:

@@ -1,6 +1,6 @@
 testthat::test_that("feedback_translations has the documented shape", {
   testthat::expect_s3_class(feedback_translations, "data.frame")
-  testthat::expect_identical(dim(feedback_translations), c(8987L, 2L))
+  testthat::expect_identical(dim(feedback_translations), c(8757L, 2L))
   testthat::expect_identical(
     names(feedback_translations),
     c("feedback", "translation")
@@ -10,22 +10,28 @@ testthat::test_that("feedback_translations has the documented shape", {
 })
 
 testthat::test_that("feedback_translations matches the documented quirks", {
-  testthat::expect_identical(sum(is.na(feedback_translations$feedback)), 11L)
-  testthat::expect_identical(sum(is.na(feedback_translations$translation)), 11L)
-  complete <- stats::complete.cases(feedback_translations)
+  # No missing or blank fields, and no near-empty rows.
+  testthat::expect_identical(sum(is.na(feedback_translations$feedback)), 0L)
+  testthat::expect_identical(sum(is.na(feedback_translations$translation)), 0L)
+  testthat::expect_true(all(nzchar(feedback_translations$translation)))
   testthat::expect_identical(
-    length(unique(feedback_translations$translation[complete])),
-    8144L
-  )
-  testthat::expect_true(
-    all(nzchar(feedback_translations$translation[complete]))
+    length(unique(feedback_translations$translation)),
+    8005L
   )
   testthat::expect_lte(
-    max(nchar(feedback_translations$translation[complete])),
+    max(nchar(feedback_translations$translation)),
     193L
   )
-  testthat::expect_true(
-    all(validEnc(feedback_translations$translation[complete]))
+  testthat::expect_true(all(validEnc(feedback_translations$translation)))
+  # Every translation is rendered into English: none is left in Cyrillic.
+  # The source `feedback` may still be in its original language.
+  testthat::expect_identical(
+    sum(grepl("[Ѐ-ӿ]", feedback_translations$translation)),
+    0L
+  )
+  testthat::expect_gt(
+    sum(grepl("[Ѐ-ӿ]", feedback_translations$feedback)),
+    0L
   )
 })
 
