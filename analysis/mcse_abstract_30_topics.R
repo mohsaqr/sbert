@@ -88,7 +88,7 @@ print(c(
 print(summary(nchar(unique_abstract, type = "chars")))
 print(summary(source_frequency))
 
-model <- load_model(model_cache, threads = 2L)
+model <- load_model("all-MiniLM-L6-v2", threads = 2L)
 model_id <- model$id
 model_revision <- model$revision
 model_dimension <- model$dimension

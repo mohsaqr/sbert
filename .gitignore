@@ -28,3 +28,9 @@ outputs/
 # knitr caches from analysis renders
 *_cache/
 *_files/
+
+# pkgdown generated site
+docs/
+
+# Private analysis source data (maintainer-only regeneration input)
+analysis/MCSE_gold.RDS

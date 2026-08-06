@@ -21,6 +21,8 @@ Description: Computes sentence embeddings in R without requiring
     visualizations. Model files are downloaded only after an explicit user
     request and are stored outside the package library.
 License: MIT + file LICENSE
+URL: https://mohsaqr.github.io/sbert/, https://github.com/mohsaqr/sbert
+BugReports: https://github.com/mohsaqr/sbert/issues
 Encoding: UTF-8
 LazyData: true
 Depends:

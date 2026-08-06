@@ -1,0 +1,79 @@
+url: https://mohsaqr.github.io/sbert/
+
+template:
+  bootstrap: 5
+
+reference:
+- title: Encoding text
+  desc: Turn text into Sentence-BERT embeddings.
+  contents:
+  - encode
+  - pool
+
+- title: Models and runtime
+  desc: >
+    Install the ONNX Runtime, download revision-pinned models, load custom
+    Hugging Face exports, and manage the on-disk cache.
+  contents:
+  - models
+  - model_download
+  - load_model
+  - load_custom
+  - model_status
+  - model_remove
+  - install_runtime
+  - cache_dir
+  - cache_size
+
+- title: Preparing a corpus
+  desc: Deduplicate, segment, and context-blend documents before modeling.
+  contents:
+  - dedupe
+  - segment
+  - abbreviations
+  - blend
+  - stop_words
+
+- title: Topic modeling
+  desc: Fit topic models, sweep the topic count, and merge topics down.
+  contents:
+  - topics
+  - select_topics
+  - fitted.sbert_topic_sweep
+  - reduce_topics
+
+- title: Describing topics
+  desc: Distinctive terms, representative documents, sizes, and keywords.
+  contents:
+  - terms.sbert_topic_model
+  - representatives
+  - topic_sizes
+  - keywords
+
+- title: Topic inference
+  desc: Assign new documents and recover soft, generative, and mixed memberships.
+  contents:
+  - predict.sbert_topic_model
+  - topic_membership
+  - topic_gamma
+
+- title: Evaluating topics
+  desc: Intrinsic coherence and topic diversity.
+  contents:
+  - coherence
+  - topic_diversity
+
+- title: Visualizing and summarizing
+  desc: Deterministic base-graphics plots, hierarchies, and reports.
+  contents:
+  - summary.sbert_topic_model
+  - plot.sbert_topic_model
+  - plot.sbert_topic_sweep
+  - topic_hierarchy
+  - topic_similarity
+  - topic_palette
+
+- title: Data
+  desc: A bundled multilingual corpus for offline examples.
+  contents:
+  - feedback_translations

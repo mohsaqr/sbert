@@ -28,7 +28,7 @@ str(batch_text)
 print(length(batch_text))
 print(summary(nchar(batch_text)))
 
-model <- load_model(model_cache, threads = 2L)
+model <- load_model("all-MiniLM-L6-v2", threads = 2L)
 batch_embeddings <- encode(
   batch_text,
   model,

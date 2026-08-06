@@ -12,6 +12,15 @@ the CRAN package `tok`. It also provides deterministic semantic topic
 clustering with representative documents and class-based TF-IDF terms. No
 Python installation is required.
 }
+\seealso{
+Useful links:
+\itemize{
+  \item \url{https://mohsaqr.github.io/sbert/}
+  \item \url{https://github.com/mohsaqr/sbert}
+  \item Report bugs at \url{https://github.com/mohsaqr/sbert/issues}
+}
+
+}
 \author{
 \strong{Maintainer}: Mohammed Saqr \email{mohammed.saqr@uef.fi} (\href{https://orcid.org/0000-0001-5881-3109}{ORCID}) [copyright holder]
 
