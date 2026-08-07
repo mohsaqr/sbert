@@ -609,7 +609,7 @@ topics <- function(
   batch_size = 32L,
   iter_max = 100L,
   n_terms = 10L,
-  n_representatives = 3L,
+  n_representatives = 5L,
   stop_words = default_stop_words(),
   min_term_frequency = 1L,
   min_token_length = 2L,

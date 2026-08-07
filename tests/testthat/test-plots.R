@@ -42,7 +42,77 @@ testthat::test_that("every plot type draws without error and returns the model",
 
   testthat::expect_identical(plot(model, type = "sizes"), model)
   testthat::expect_identical(plot(model, type = "terms", n_terms = 3L), model)
+  testthat::expect_identical(
+    plot(model, type = "representatives", n_representatives = 2L),
+    model
+  )
+  testthat::expect_identical(
+    plot(model, type = "fit", n_terms = 3L, n_representatives = 2L),
+    model
+  )
+  testthat::expect_identical(
+    plot(model, type = "fit", topics = 2L),
+    model
+  )
   testthat::expect_identical(plot(model, type = "map"), model)
+})
+
+testthat::test_that("terms plot accepts metrics and a topic subset", {
+  model <- plots_test_model()
+  temporary_device <- tempfile(fileext = ".pdf")
+  grDevices::pdf(temporary_device)
+  on.exit(
+    {
+      grDevices::dev.off()
+      unlink(temporary_device)
+    },
+    add = TRUE
+  )
+
+  for (metric in c("score", "beta", "frequency")) {
+    testthat::expect_identical(plot(model, type = "terms", by = metric), model)
+  }
+  testthat::expect_identical(
+    plot(model, type = "terms", by = c("frequency", "score", "beta")),
+    model
+  )
+  testthat::expect_identical(
+    plot(model, type = "terms", by = c("frequency", "beta"), topics = 2L),
+    model
+  )
+  testthat::expect_identical(
+    plot(model, type = "representatives", topics = c(1L, 3L)),
+    model
+  )
+  for (ty in c("terms", "representatives", "fit")) {
+    testthat::expect_identical(plot(model, type = ty, per_topic = TRUE), model)
+  }
+  testthat::expect_identical(
+    plot(model, type = "fit", per_topic = TRUE, topics = c(1L, 2L)),
+    model
+  )
+  testthat::expect_error(plot(model, type = "terms", by = "tfidf"))
+  testthat::expect_error(plot(model, type = "terms", topics = 99L))
+  testthat::expect_error(plot(model, type = "fit", per_topic = NA))
+})
+
+testthat::test_that("representatives plot caps at the retained document count", {
+  model <- plots_test_model()
+  temporary_device <- tempfile(fileext = ".pdf")
+  grDevices::pdf(temporary_device)
+  on.exit(
+    {
+      grDevices::dev.off()
+      unlink(temporary_device)
+    },
+    add = TRUE
+  )
+
+  testthat::expect_identical(
+    plot(model, type = "representatives", n_representatives = 99L),
+    model
+  )
+  testthat::expect_error(plot(model, type = "representatives", n_representatives = 0))
 })
 
 testthat::test_that("the map requires stored embeddings", {

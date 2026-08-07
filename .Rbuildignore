@@ -18,7 +18,7 @@
 ^cran-comments\.md$
 ^data-raw$
 ^Rplots\.pdf$
-^\.DS_Store$
+(^|/)\.DS_Store$
 ^TODO\.md$
 ^\.claude$
 ^_pkgdown\.yml$

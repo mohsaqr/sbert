@@ -15,8 +15,6 @@ knitr::opts_chunk$set(
   fig.width = 7, fig.height = 4.2, dpi = 150, out.width = "100%"
 )
 library(sbert)
-fig_dir <- file.path(tempdir(), "levebee_vignette_figs")
-dir.create(fig_dir, recursive = TRUE, showWarnings = FALSE)
 ```
 
 # Why this tutorial
@@ -76,6 +74,8 @@ frequencies, which return as weights when sizes are reported.
 ```{r data}
 corpus <- dedupe(feedback_translations$translation)
 nrow(corpus)
+
+
 ```
 
 Three explicit steps turn the corpus into numbers, and each exists for a
@@ -187,91 +187,33 @@ head(subset(beta, topic == 1), 8)
 head(subset(topic_model$terms, topic == 1), 8)
 ```
 
-# The topics, panel by panel
+# The topics at a glance
 
-Each panel pairs the two keyword bars with the five centroid-nearest
-messages (cosine distance in parentheses — smaller is closer to the topic's
-center). The sentences are the ground truth here: the bars summarize, the
-sentences verify.
+The two-panel drawing this tutorial once carried by hand is now built into the
+package. `plot(topic_model, type = "terms")` shows each topic's distinctive
+class-based TF-IDF terms, each bar annotated with its score:
 
-```{r panel-helper, include=FALSE}
-palette_colors <- topic_palette(nrow(topic_model$topics))
-
-draw_topic_panel <- function(model, beta, topic_id, color, path) {
-  count_rows <- head(subset(beta, topic == topic_id), 8)
-  score_rows <- head(subset(model$terms, topic == topic_id), 8)
-  png(path, width = 2100, height = 1100, res = 300)
-  op <- par(
-    mfrow = c(1, 2), mar = c(2.6, 7.2, 2.2, 1.2),
-    mgp = c(1.5, 0.35, 0), tcl = -0.2, family = "sans"
-  )
-  on.exit({par(op); dev.off()}, add = TRUE)
-  draw_bar_column(
-    values = rev(count_rows$frequency),
-    labels = rev(count_rows$term),
-    title = "Within-topic count",
-    color = color,
-    value_format = "%d"
-  )
-  draw_bar_column(
-    values = rev(score_rows$score),
-    labels = rev(score_rows$term),
-    title = "Class-based TF-IDF",
-    color = grDevices::adjustcolor(color, alpha.f = 0.55),
-    value_format = "%.3f"
-  )
-  invisible(path)
-}
-
-draw_bar_column <- function(values, labels, title, color, value_format) {
-  positions <- barplot(
-    values,
-    names.arg = labels,
-    horiz = TRUE,
-    las = 1,
-    border = NA,
-    col = color,
-    xlim = c(0, max(values) * 1.22),
-    cex.names = 0.72,
-    cex.axis = 0.6,
-    axes = FALSE
-  )
-  text(
-    x = values,
-    y = positions,
-    labels = sprintf(value_format, values),
-    pos = 4,
-    cex = 0.6,
-    col = "grey30"
-  )
-  title(main = title, adj = 0, cex.main = 0.85, font.main = 2, line = 0.6)
-}
+```{r plot-terms, fig.width = 9, fig.height = 7}
+plot(topic_model, type = "terms")
 ```
 
-```{r panels, echo=FALSE, results="asis"}
-invisible(lapply(
-  seq_len(nrow(topic_model$topics)),
-  function(topic_id) {
-    topic_row <- subset(topic_model$topics, topic == topic_id)
-    cat(sprintf(
-      "## Topic %d — %s\n\n%d distinct messages (%.1f%% of the corpus)\n\n",
-      topic_id,
-      topic_row$label,
-      topic_row$n_documents,
-      100 * topic_row$proportion
-    ))
-    figure_path <- file.path(fig_dir, sprintf("topic_%02d.png", topic_id))
-    draw_topic_panel(topic_model, beta, topic_id, palette_colors[[topic_id]], figure_path)
-    cat(sprintf("<img src=\"%s\" width=\"100%%\"/>\n\n", knitr::image_uri(figure_path)))
-    representatives <- subset(topic_model$representatives, topic == topic_id)
-    cat("**Representative messages**\n\n")
-    cat(sprintf(
-      "> %s *(%.3f)*\n\n",
-      representatives$text,
-      representatives$distance
-    ), sep = "")
-  }
-))
+`type = "fit"` is the whole per-topic report in one figure: for every topic
+(one row) it draws all three keyword views — raw within-topic count, class-based
+TF-IDF, and generative probability (beta) — followed by the topic's
+centroid-nearest messages with their cosine similarity to the centroid. Reading
+across a row shows a label, why it is distinctive, and the evidence that
+supports it.
+
+```{r plot-fit, fig.width = 13, fig.height = 14}
+plot(topic_model, type = "fit", n_terms = 8, n_representatives = 10)
+```
+The document text is clipped to fit; for the full, untruncated evidence behind
+each topic, ask for the representatives directly:
+
+```{r representatives}
+subset(topic_model$representatives, rank <= 2)[
+  , c("topic", "rank", "text", "distance")
+]
 ```
 
 # Where to go from here

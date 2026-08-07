@@ -202,12 +202,41 @@ Probabilities sum to 1 within a document, and `rank` 1 is its strongest topic.
 
 ## Visual summary
 
-```{r plots, fig.height=5}
+`plot()` renders a fitted model several ways. Sizes counts documents per topic:
+
+```{r plot-sizes, fig.height=5}
 plot(fit, type = "sizes")
 ```
 
+`type = "terms"` defaults to the class-based TF-IDF terms. The `by` argument
+switches the ranking to the raw within-topic count (`"frequency"`) or the
+generative probability (`"beta"`), and accepts several metrics at once — one
+column each — so the *says-most* and *says-distinctively* views sit side by
+side (shown here for one topic):
+
 ```{r plot-terms, fig.height=6}
 plot(fit, type = "terms")
+```
+
+```{r plot-terms-by, fig.height=3.5}
+plot(fit, type = "terms", by = c("frequency", "score", "beta"), topics = 1)
+```
+
+`type = "representatives"` lists each topic's centroid-nearest messages — the
+evidence that a label means what it claims. Ask for more than the model stored
+and they are recomputed from the retained embeddings:
+
+```{r plot-representatives, fig.height=6}
+plot(fit, type = "representatives", n_representatives = 8)
+```
+
+`type = "fit"` is the whole per-topic report in one figure — all three term
+views beside the representative documents, one row per topic. `per_topic = TRUE`
+gives each topic its own figure with the documents stacked beneath the terms
+(shown here for a single topic):
+
+```{r plot-fit, fig.height=4}
+plot(fit, type = "fit", per_topic = TRUE, topics = 1)
 ```
 
 ## Guided topics

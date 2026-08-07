@@ -1,5 +1,18 @@
 # sbert 0.5.2
 
+- Added `plot(topic_model, type = "representatives")`, a per-topic ranked text
+  list of the centroid-nearest documents (with their cosine similarity to the
+  centroid), an `n_representatives` argument, and `type = "fit"`, a per-topic
+  report placing all three term views (count, TF-IDF, beta) alongside the
+  representative documents, one row per topic. Term bar panels now annotate
+  each bar with its value.
+- `plot(type = "terms")` gains a `by` argument selecting one or more of
+  `"score"` (class-based TF-IDF, the default), `"beta"` (generative word
+  probability), and `"frequency"` (within-topic count); several metrics draw
+  one row per topic with a column each. A new `topics` argument restricts
+  `"terms"`, `"representatives"`, and `"fit"` to chosen topic numbers, and
+  `per_topic = TRUE` draws a separate figure for each topic instead of one
+  gridded figure.
 - README updated for the 0.5 API: data-frame input to `topics()`, the
   retained-model sweep with `fitted()`, and `terms()` retuning without a
   refit. Adds a pointer to the tutorial vignette.

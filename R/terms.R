@@ -35,6 +35,7 @@
 #' @return A base data frame with one row per topic and term: `topic`,
 #'   `label`, `term`, `rank`, `score` (the class-based weight), `frequency`
 #'   (within-topic count), and `beta`, the multinomial \eqn{p(term | topic)}.
+#' @importFrom stats terms
 #' @export
 #' @examples
 #' text <- c(
