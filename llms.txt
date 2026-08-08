@@ -1,0 +1,429 @@
+# sbert
+
+`sbert` computes genuine Sentence-BERT embeddings in R without Python.
+Fourteen models are supported, each pinned to an immutable revision and
+verified by SHA-256
+([`models()`](https://pak.dynasite.org/sbert/reference/models.md) lists
+them): the classic `sentence-transformers` family (`all-MiniLM-L6-v2` —
+the default — `all-MiniLM-L12-v2`, `paraphrase-MiniLM-L3-v2`,
+`multi-qa-MiniLM-L6-cos-v1`, `all-mpnet-base-v2`, and the multilingual
+MiniLM/mpnet pair) plus modern embedders: `bge-small-en-v1.5` and
+`bge-base-en-v1.5` (CLS pooling), `multilingual-e5-small` (100+
+languages), `nomic-embed-text-v1.5` and `jina-embeddings-v2-small-en`
+(8,192-token context), and `mxbai-embed-large-v1` (1,024 dimensions).
+Hugging Face-compatible tokenization is provided by
+[`tok`](https://cran.r-project.org/package=tok), and native model
+inference by [`onnxr`](https://cran.r-project.org/package=onnxr).
+Embeddings are numerically identical to Python `SentenceTransformers`
+output (verified to ~1e-7).
+
+The package never downloads a model or native runtime during
+installation, loading, examples, tests, or vignette building. Both
+downloads are explicit:
+
+``` r
+
+install.packages("sbert")
+
+library(sbert)
+install_runtime()
+
+sentences <- c(
+  "A student is reading a research paper.",
+  "A learner studies an academic article.",
+  "The bicycle is parked beside the building."
+)
+embeddings <- encode(sentences)
+topic_similarity(embeddings)
+```
+
+[`encode()`](https://pak.dynasite.org/sbert/reference/encode.md) uses
+the default `all-MiniLM-L6-v2` and asks once before its first download;
+pick any other pinned model by name
+(`encode(sentences, model = "bge-small-en-v1.5")` — see
+[`models()`](https://pak.dynasite.org/sbert/reference/models.md) for the
+menu). Loaded models are reused for the whole session. Explicit
+[`model_download()`](https://pak.dynasite.org/sbert/reference/model_download.md)
+/
+[`load_model()`](https://pak.dynasite.org/sbert/reference/load_model.md)
+remain available for scripted installs and backend/thread control.
+
+Semantic topic modeling uses the same native embeddings, deterministic
+k-means, representative documents, and class-based TF-IDF terms:
+
+``` r
+
+topic_model <- topics(
+  sentences,
+  n_topics = 2,
+  n_terms = 8
+)
+
+topic_model$topics
+topic_model$terms
+topic_model$representatives
+```
+
+Pass a data frame instead and name the text column: every other column
+rides along into `$documents`, and rows whose text is missing, blank, or
+a bibliographic placeholder are dropped once rather than by you.
+
+``` r
+
+topic_model <- topics(articles, column = "abstract", n_topics = 40)
+```
+
+There is no correct topic count, so choose it from a table rather than
+by habit.
+[`select_topics()`](https://pak.dynasite.org/sbert/reference/select_topics.md)
+keeps every model it fits, and
+[`fitted()`](https://rdrr.io/r/stats/fitted.values.html) takes the one
+you want without refitting:
+
+``` r
+
+sweep <- select_topics(text, n_topics = c(10, 20, 30, 40), embeddings = embeddings)
+sweep                                    # coherence, diversity, explained
+plot(sweep)
+
+topic_model <- fitted(sweep, n_topics = 30)
+```
+
+Topic terms depend only on the fitted assignments and the text, so every
+term setting can be retuned without repeating the clustering or the
+encoding:
+
+``` r
+
+terms(topic_model, n = 12)                       # distinctive terms (c-TF-IDF)
+terms(topic_model, n = 12, sort_by = "beta")     # the words a topic uses most
+terms(topic_model, n = 12, weighting = "bm25", stem = TRUE)
+```
+
+Fitted topic models support a full inferential layer — assignment of new
+documents, soft membership, generative word probabilities, and
+mixed-topic document distributions:
+
+``` r
+
+predict(topic_model, new_sentences)   # nearest-centroid topics
+topic_membership(topic_model)         # fuzzy topic probabilities
+terms(topic_model)                    # ranked terms + p(term | topic)
+topic_gamma(topic_model, sentences)   # per-document topic mixture
+```
+
+Beyond the curated registry,
+[`load_custom()`](https://pak.dynasite.org/sbert/reference/load_custom.md)
+loads any public Hugging Face repository with an ONNX encoder export,
+auto-detecting its configuration and pinning it locally on first use
+(“trust on first use”):
+
+``` r
+
+gte <- load_custom("thenlper/gte-small")
+encode(sentences, gte)
+```
+
+Multilingual corpora use the same API with a multilingual model:
+
+``` r
+
+model_download("paraphrase-multilingual-MiniLM-L12-v2")
+multilingual <- load_model("paraphrase-multilingual-MiniLM-L12-v2")
+embeddings <- encode(head(feedback_translations$feedback, 100), multilingual)
+```
+
+`n_topics` is deliberately explicit: the package does not silently guess
+a topic count. You may also pass a precomputed embedding matrix through
+the `embeddings` argument for reproducible offline analysis.
+
+Every topic solution can be evaluated and visualized without any further
+model call:
+
+``` r
+
+coherence(topic_model, measure = "npmi")  # per-topic UMass / NPMI coherence
+topic_diversity(topic_model)              # distinct-vocabulary proportion
+summary(topic_model)                      # scientific report + quality table
+
+plot(topic_model, type = "sizes")         # documents per topic
+plot(topic_model, type = "terms")         # top class-based TF-IDF terms
+plot(topic_model, type = "map")           # classical-MDS document map
+```
+
+Term weighting supports the class-based TF-IDF, BM25
+(`weighting = "bm25"`), and square-root (`reduce_frequent_words = TRUE`)
+schemes of Mendonca and Figueira (2025).
+
+For very large corpora there is an instant-speed tier: `potion-base-8M`
+is a static (Model2Vec) model whose encoding is a token lookup and mean
+in pure base R — around 10,000 sentences per second, no ONNX involved,
+with the same pinning, verification, and verbs as every other model:
+
+``` r
+
+model_download("potion-base-8M")   # 30 MB
+fast <- load_model("potion-base-8M")
+embeddings <- encode(text, model = fast)
+```
+
+Topic models can be guided: name your topics and seed them with words or
+descriptions, and the seeds become the first centroids — initialization
+only by default, frozen with `fixed_seeds = TRUE` (zero-shot
+assignment):
+
+``` r
+
+topics(
+  text,
+  n_topics = 10,
+  seeds = c(
+    motivation = "student motivation and engagement",
+    assessment = "grading feedback and assessment"
+  )
+)
+```
+
+Around the topic model, a few utilities cover the everyday analysis
+moves:
+
+``` r
+
+keywords(text, n = 5)                                 # embedding-ranked keywords (MMR)
+stop_words(add = c("students", "learning"))           # exclude corpus vocabulary
+select_topics(text, n_topics = c(10, 20, 30), embeddings = embeddings)
+tree <- topic_hierarchy(topic_model)                  # which topics are neighbours?
+plot(tree)                                            # labeled dendrogram
+smaller <- reduce_topics(topic_model, n_topics = 12)  # merge down, keep all verbs
+```
+
+Documents can be split into sentences, clauses, or phrases before
+embedding, entirely offline and deterministically:
+
+``` r
+
+segment(
+  "We had two goals: speed and clarity; both were met. See Fig. 3.",
+  level = "clause"
+)
+```
+
+[`segment()`](https://pak.dynasite.org/sbert/reference/segment.md)
+returns one row per segment with the source document index, guarding
+abbreviations
+([`abbreviations()`](https://pak.dynasite.org/sbert/reference/abbreviations.md)),
+decimals, and parentheticals so they never end a sentence. The clause
+level (the default) also splits at subordinating hinges while keeping
+comma enumerations whole.
+
+Segments can carry their document’s context into the embedding:
+[`blend()`](https://pak.dynasite.org/sbert/reference/blend.md) keeps
+`alpha` of each segment’s context-orthogonal residual and inherits the
+rest from the parent document vector, so a sentence that is ambiguous in
+isolation embeds near its document’s subject while keeping what it alone
+says. The result drops into
+[`topics()`](https://pak.dynasite.org/sbert/reference/topics.md) and
+[`representatives()`](https://pak.dynasite.org/sbert/reference/representatives.md)
+unchanged:
+
+``` r
+
+sentences <- segment(abstracts, level = "sentence")
+embeddings <- blend(sentences, abstracts, alpha = 0.5)
+```
+
+The bundled `feedback_translations` dataset (8,757 multilingual
+AI-generated mathematics feedback messages from the Levebee educational
+application, with English translations) provides a realistic corpus for
+trying the full workflow offline:
+
+``` r
+
+head(feedback_translations)
+```
+
+Model downloads range from 69 MB (`paraphrase-MiniLM-L3-v2`) to 1.1 GB
+(`paraphrase-multilingual-mpnet-base-v2`) and are stored under the
+platform-specific path returned by
+[`cache_dir()`](https://pak.dynasite.org/sbert/reference/cache_dir.md).
+Every artifact is verified by byte size and SHA-256 before it is used.
+
+## Tutorial
+
+A full worked tutorial ships with the package and runs offline on the
+bundled `feedback_translations` data — choosing a topic count, reading
+the topics, checking quality, and merging down the topic tree:
+
+``` r
+
+vignette("topic-modeling", package = "sbert")
+```
+
+## Supported scope
+
+- Models: fourteen pinned models (see
+  [`models()`](https://pak.dynasite.org/sbert/reference/models.md)),
+  classic and modern, English and multilingual, 384 to 1,024 dimensions,
+  128 to 8,192 tokens, 69 MB to 1.3 GB
+- Pooling: attention-mask-aware mean pooling or CLS pooling, per model
+- Prefixes: model-pinned input prefixes applied automatically (E5,
+  Nomic)
+- Custom models:
+  [`load_custom()`](https://pak.dynasite.org/sbert/reference/load_custom.md)
+  for any HF ONNX encoder repository, with trust-on-first-use local
+  pinning
+- Tokenization: each model’s official `tokenizer.json`, truncated to the
+  model’s published maximum sequence length
+- Pooling: attention-mask-aware mean pooling
+- Normalization: row-wise L2 normalization by default
+- Segmentation: deterministic sentence, clause, and phrase splitting
+  with an abbreviation gazetteer and decimal/parenthetical guards
+- Topic discovery: deterministic k-means with farthest-point
+  initialization
+- Topic descriptions: representative documents and BERTopic-style
+  c-TF-IDF
+- Topic inference: [`predict()`](https://rdrr.io/r/stats/predict.html)
+  for new documents, fuzzy soft membership, generative `beta`, and
+  segment-based document-topic `gamma`
+- Topic evaluation: intrinsic UMass and NPMI coherence, and topic
+  diversity
+- Topic visualization: deterministic base-graphics size, term, and MDS
+  map views
+- Backends: those exposed by `onnxr`, with CPU as the portable default
+
+Arbitrary unpinned Hugging Face models and training/fine-tuning are
+intentionally out of scope.
+
+# Package index
+
+## Encoding text
+
+Turn text into Sentence-BERT embeddings.
+
+- [`encode()`](https://pak.dynasite.org/sbert/reference/encode.md) :
+  Encode Text with Sentence-BERT
+- [`pool()`](https://pak.dynasite.org/sbert/reference/pool.md) : Pool
+  Token Embeddings into Sentence Embeddings
+
+## Models and runtime
+
+Install the ONNX Runtime, download revision-pinned models, load custom
+Hugging Face exports, and manage the on-disk cache.
+
+- [`models()`](https://pak.dynasite.org/sbert/reference/models.md) :
+  List the Available Pinned Sentence-BERT Models
+- [`model_download()`](https://pak.dynasite.org/sbert/reference/model_download.md)
+  : Download a Pinned Sentence-BERT Model
+- [`load_model()`](https://pak.dynasite.org/sbert/reference/load_model.md)
+  : Load a Pinned Sentence-BERT Model
+- [`load_custom()`](https://pak.dynasite.org/sbert/reference/load_custom.md)
+  : Load an Arbitrary Hugging Face Embedding Model
+- [`model_status()`](https://pak.dynasite.org/sbert/reference/model_status.md)
+  : Inspect an Installed Model
+- [`model_remove()`](https://pak.dynasite.org/sbert/reference/model_remove.md)
+  : Remove an Installed Model from the Cache
+- [`install_runtime()`](https://pak.dynasite.org/sbert/reference/install_runtime.md)
+  : Install ONNX Runtime
+- [`cache_dir()`](https://pak.dynasite.org/sbert/reference/cache_dir.md)
+  : Locate the sbert Model Cache
+- [`cache_size()`](https://pak.dynasite.org/sbert/reference/cache_size.md)
+  : Measure the sbert Cache
+
+## Preparing a corpus
+
+Deduplicate, segment, and context-blend documents before modeling.
+
+- [`dedupe()`](https://pak.dynasite.org/sbert/reference/dedupe.md) :
+  Deduplicate a Text Corpus with Frequencies
+- [`segment()`](https://pak.dynasite.org/sbert/reference/segment.md) :
+  Segment Text into Sentences, Clauses, or Phrases
+- [`abbreviations()`](https://pak.dynasite.org/sbert/reference/abbreviations.md)
+  : Obtain the Built-in Abbreviation Gazetteer
+- [`blend()`](https://pak.dynasite.org/sbert/reference/blend.md) : Blend
+  Segment Embeddings with Their Document Context
+- [`stop_words()`](https://pak.dynasite.org/sbert/reference/stop_words.md)
+  : Obtain and Adjust the Topic Stop-Word List
+
+## Topic modeling
+
+Fit topic models, sweep the topic count, and merge topics down.
+
+- [`topics()`](https://pak.dynasite.org/sbert/reference/topics.md) :
+  Discover Semantic Topics in Documents
+- [`select_topics()`](https://pak.dynasite.org/sbert/reference/select_topics.md)
+  : Compare Topic Counts Before Committing to One
+- [`fitted(`*`<sbert_topic_sweep>`*`)`](https://pak.dynasite.org/sbert/reference/fitted.sbert_topic_sweep.md)
+  : Extract One Fitted Model from a Topic-Count Sweep
+- [`reduce_topics()`](https://pak.dynasite.org/sbert/reference/reduce_topics.md)
+  : Reduce a Fitted Topic Model to Fewer Topics
+
+## Describing topics
+
+Distinctive terms, representative documents, sizes, and keywords.
+
+- [`terms(`*`<sbert_topic_model>`*`)`](https://pak.dynasite.org/sbert/reference/terms.sbert_topic_model.md)
+  : Topic Terms, Retuned Without Refitting
+- [`representatives()`](https://pak.dynasite.org/sbert/reference/representatives.md)
+  : Representative Text Units for Every Topic
+- [`topic_sizes()`](https://pak.dynasite.org/sbert/reference/topic_sizes.md)
+  : Topic Sizes on the Distinct and Weighted Scales
+- [`keywords()`](https://pak.dynasite.org/sbert/reference/keywords.md) :
+  Extract Keywords from Documents by Embedding Similarity
+
+## Topic inference
+
+Assign new documents and recover soft, generative, and mixed
+memberships.
+
+- [`predict(`*`<sbert_topic_model>`*`)`](https://pak.dynasite.org/sbert/reference/predict.sbert_topic_model.md)
+  : Assign New Documents to Fitted Topics
+- [`topic_membership()`](https://pak.dynasite.org/sbert/reference/topic_membership.md)
+  : Soft Topic Membership Probabilities
+- [`topic_gamma()`](https://pak.dynasite.org/sbert/reference/topic_gamma.md)
+  : Document-Topic Distributions from Segment Assignments
+
+## Evaluating topics
+
+Intrinsic coherence and topic diversity.
+
+- [`coherence()`](https://pak.dynasite.org/sbert/reference/coherence.md)
+  : Score Topic Coherence
+- [`topic_diversity()`](https://pak.dynasite.org/sbert/reference/topic_diversity.md)
+  : Measure Topic Diversity
+
+## Visualizing and summarizing
+
+Deterministic base-graphics plots, hierarchies, and reports.
+
+- [`summary(`*`<sbert_topic_model>`*`)`](https://pak.dynasite.org/sbert/reference/summary.sbert_topic_model.md)
+  : Summarize a Semantic Topic Model
+- [`plot(`*`<sbert_topic_model>`*`)`](https://pak.dynasite.org/sbert/reference/plot.sbert_topic_model.md)
+  : Plot a Semantic Topic Model
+- [`plot(`*`<sbert_topic_sweep>`*`)`](https://pak.dynasite.org/sbert/reference/plot.sbert_topic_sweep.md)
+  : Plot a Topic-Count Sweep
+- [`topic_hierarchy()`](https://pak.dynasite.org/sbert/reference/topic_hierarchy.md)
+  : Build the Topic Hierarchy of a Fitted Model
+- [`topic_similarity()`](https://pak.dynasite.org/sbert/reference/topic_similarity.md)
+  : Compute Cosine Similarity
+- [`topic_palette()`](https://pak.dynasite.org/sbert/reference/topic_palette.md)
+  : Qualitative Colour Palette for Topics
+
+## Data
+
+A bundled multilingual corpus for offline examples.
+
+- [`feedback_translations`](https://pak.dynasite.org/sbert/reference/feedback_translations.md)
+  : Levebee AI Mathematics Feedback with English Translations
+
+# Articles
+
+### All vignettes
+
+- [Semantic Topics in Levebee AI Mathematics Feedback — an sbert
+  Tutorial](https://pak.dynasite.org/sbert/articles/levebee_vignette.md):
+- [MCSE Abstract
+  Topics](https://pak.dynasite.org/sbert/articles/mcse_abstract_30_topics.md):
+- [Python-Free Sentence-BERT in
+  R](https://pak.dynasite.org/sbert/articles/python-free-sbert.md):
+- [Topic Modeling: A
+  Tutorial](https://pak.dynasite.org/sbert/articles/topic-modeling.md):
