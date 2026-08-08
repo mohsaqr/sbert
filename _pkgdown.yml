@@ -1,4 +1,8 @@
-url: https://mohsaqr.github.io/sbert/
+# Served from pak.dynasite.org, not GitHub Pages: the mohsaqr.github.io user
+# site CNAMEs to saqr.me, so project pages resolve to saqr.me/<repo>/ — which
+# 404s. The gh-pages branch built by .github/workflows/pkgdown.yaml is
+# mirrored to pak.dynasite.org by the dynasite-infra cron.
+url: https://pak.dynasite.org/sbert
 
 template:
   bootstrap: 5
